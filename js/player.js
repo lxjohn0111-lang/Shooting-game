@@ -143,8 +143,9 @@ export class Player {
     this.shake = Math.min(1, this.shake + def.shake * 0.11);
     this.boltT = 0; if (w.id === 'shotgun') this.pumpT = 0;
     _v2.set(0, 0, -1).applyQuaternion(cam.getWorldQuaternion(_q));
-    if (!def.energy) fx.muzzle(muz, _v2, def.pellets ? 1.5 : w.id === 'marksman' ? 1.4 : w.id === 'pistol' ? 0.8 : 1);
-    else { fx.glow(mx, my, mz, 1.2, [0.3, 0.8, 1], 0.12, 0, 8); g.gfx.flash(muz, new THREE.Color(0.3, 0.7, 1), 60, 0.15, 20); }
+    const lp = new THREE.Vector3(ox + _v2.x * 1.6, oy + _v2.y * 1.6 - 0.15, oz + _v2.z * 1.6);
+    if (!def.energy) fx.muzzle(muz, _v2, def.pellets ? 1.5 : w.id === 'marksman' ? 1.4 : w.id === 'pistol' ? 0.8 : 1, [1.0, 0.75, 0.4], 0.17, lp);
+    else { fx.glow(mx, my, mz, 0.22, [0.3, 0.8, 1], 0.12, 0, 6); g.gfx.flash(lp, new THREE.Color(0.3, 0.7, 1), 24, 0.15, 20); }
     if (!def.energy && !def.projectile && w.id !== 'shotgun') { const ej = m.group.localToWorld(_v3.copy(m.eject)); fx.casing(ej, _v.copy(right).multiplyScalar(rand(1.6, 2.6)).addScaledVector(up, rand(1.5, 2.5)).add(new THREE.Vector3(this.body.vx, 0, this.body.vz)), w.id === 'marksman' ? 1.5 : 1); }
     g.audio.play(def.sound, { vol: 0.9, rv: 0.04, reverb: 0.55 });
     g.onPlayerShot();

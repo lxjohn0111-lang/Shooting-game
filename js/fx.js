@@ -206,13 +206,13 @@ export class FX {
     this.emit({ x: bx, y: by, z: bz, life: life * 0.6, s0: width * 4, s1: width * 0.6, r: col[0] * k * 0.25, g: col[1] * k * 0.25, b: col[2] * k * 0.25, frame: 14, tail: [ax - bx, ay - by, az - bz] });
   }
 
-  muzzle(pos, dir, size = 1, col = [1.0, 0.75, 0.4]) {
-    this.glow(pos.x, pos.y, pos.z, 0.42 * size, col, 0.05, 4, 7);
-    this.glow(pos.x + dir.x * 0.12, pos.y + dir.y * 0.12, pos.z + dir.z * 0.12, 0.7 * size, col, 0.045, 0, 2.2);
+  // first-person muzzle flash. The view-model is rendered scaled-down close to the camera, so sprites are scaled to match (vm)
+  muzzle(pos, dir, size = 1, col = [1.0, 0.75, 0.4], vm = 0.17, lightPos = null) {
+    this.glow(pos.x, pos.y, pos.z, 0.42 * size * vm, col, 0.045, 4, 6);
+    this.glow(pos.x + dir.x * 0.1 * vm, pos.y + dir.y * 0.1 * vm, pos.z + dir.z * 0.1 * vm, 0.75 * size * vm, col, 0.04, 0, 1.6);
     const a = this.amb;
-    this.emit({ x: pos.x, y: pos.y, z: pos.z, vx: dir.x * 2.5, vy: dir.y * 2.5 + 0.4, vz: dir.z * 2.5, life: 0.7, s0: 0.08 * size, s1: 0.5 * size, r: a.r * 0.8, g: a.g * 0.8, b: a.b * 0.8, a: 0.22, drag: 4, rv: rand(-1, 1), frame: 1, add: false, fadeIn: 0.05 });
-    if (Math.random() < 0.6) this.sparks(pos.x, pos.y, pos.z, dir.x, dir.y, dir.z, 2, col, 9, 0.5);
-    this.gfx.flash(pos, new THREE.Color(col[0], col[1], col[2]), 26 * size, 0.07, 14);
+    this.emit({ x: pos.x, y: pos.y, z: pos.z, vx: dir.x * 0.5, vy: dir.y * 0.5 + 0.08, vz: dir.z * 0.5, life: 0.5, s0: 0.05 * size * vm, s1: 0.6 * size * vm, r: a.r * 0.8, g: a.g * 0.8, b: a.b * 0.8, a: 0.16, drag: 4, rv: rand(-1, 1), frame: 1, add: false, fadeIn: 0.04 });
+    this.gfx.flash(lightPos || pos, new THREE.Color(col[0], col[1], col[2]), 9 * size, 0.07, 13);
   }
 
   explosion(x, y, z, radius = 5, col = [1.0, 0.55, 0.2]) {
@@ -314,7 +314,7 @@ export class FX {
       c.life -= dt; c.v.y -= 15 * dt; c.p.addScaledVector(c.v, dt);
       if (c.p.y < c.floor + 0.012) { c.p.y = c.floor + 0.012; if (c.v.y < -1) { c.v.y *= -0.4; c.v.x *= 0.6; c.v.z *= 0.6; c.rv.multiplyScalar(0.6); if (c.life > 0.3) this.game.audio && this.game.audio.play('casing', { pos: c.p, vol: 0.25 }); } else { c.v.set(0, 0, 0); c.rv.set(0, 0, 0); } }
       c.r.x += c.rv.x * dt; c.r.y += c.rv.y * dt; c.r.z += c.rv.z * dt;
-      const s = c.life > 0 ? c.s * Math.min(1, c.life * 4) : 0;
+      const s = c.life > 0 ? c.s * Math.min(1, c.life * 4) * Math.min(1, 0.22 + (2.2 - c.life) * 3.2) : 0;
       this._m.compose(c.p, this._q.setFromEuler(c.r), this._s.set(s, s, s)); this.casings.setMatrixAt(i, this._m);
     }
     if (cdirty) this.casings.instanceMatrix.needsUpdate = true;

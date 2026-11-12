@@ -38,7 +38,7 @@ export class Input {
 
   // ---- touch controls ----
   setupTouch(root) {
-    this.touch = true; root.classList.add('on');
+    this.touch = true; root.classList.add('on'); document.body.classList.add('touch');
     const stickEl = root.querySelector('.stick'), knob = root.querySelector('.knob'), look = root.querySelector('.look');
     let sid = null, sx = 0, sy = 0, lid = null, lx = 0, ly = 0;
     const R = 56;
