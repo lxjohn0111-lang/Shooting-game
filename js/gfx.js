@@ -210,7 +210,7 @@ export const SKIES = {
   golden: {
     sunDir: [-0.55, 0.26, -0.62], sunCol: [1.0, 0.62, 0.32], sunInt: 5.2, zenith: [0.13, 0.26, 0.52], horizon: [0.95, 0.56, 0.30], ground: [0.16, 0.12, 0.09],
     cloud: 0.5, cloudScale: 0.55, cloudLit: [1.25, 0.82, 0.55], cloudDark: [0.26, 0.24, 0.32], sunDisk: 70, sunGlow: 1.5, stars: 0, hazeExp: 0.42, skyInt: 1.0,
-    fog: [0.78, 0.50, 0.32], fogDensity: 0.0085, hemiSky: [0.55, 0.62, 0.9], hemiGround: [0.45, 0.32, 0.22], hemiInt: 0.35, envInt: 0.9, exposure: 1.0,
+    fog: [0.78, 0.50, 0.32], fogDensity: 0.0085, hemiSky: [0.55, 0.62, 0.9], hemiGround: [0.45, 0.32, 0.22], hemiInt: 0.75, envInt: 1.15, exposure: 1.0,
     lift: [0.02, 0.012, 0.0], gain: [1.03, 1.0, 0.95], sat: 1.12, contrast: 1.06, rays: 0.55, lamps: 0.25, wet: 0, bloom: 0.65,
   },
   dusk: {

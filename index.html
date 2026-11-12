@@ -1,0 +1,243 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>VANTA PROTOCOL</title>
+<meta name="description" content="VANTA PROTOCOL — a cinematic first-person shooter. Fight rogue war machines across a six-mission campaign and endless Onslaught mode.">
+<link rel="stylesheet" href="css/style.css">
+<script src="https://sdk.crazygames.com/crazygames-sdk-v3.js"></script>
+</head>
+<body>
+<canvas id="game"></canvas>
+<div id="ui">
+
+  <!-- LOADING -->
+  <section id="loading" class="screen on">
+    <div class="load-wrap">
+      <div class="logo"><span class="logo-a">VANTA</span><span class="logo-b">PROTOCOL</span></div>
+      <div class="load-bar"><i id="loadFill"></i></div>
+      <div class="load-label" id="loadLabel">INITIALIZING</div>
+    </div>
+  </section>
+
+  <!-- MAIN MENU -->
+  <section id="menu" class="screen">
+    <div class="menu-left">
+      <div class="logo big"><span class="logo-a">VANTA</span><span class="logo-b">PROTOCOL</span></div>
+      <div class="tagline">THE MACHINES STOPPED TAKING ORDERS.</div>
+      <nav class="mainnav">
+        <button class="btn primary" data-go="missions"><b>CAMPAIGN</b><small id="menuCampaign">6 missions</small></button>
+        <button class="btn" id="btnOnslaught"><b>ONSLAUGHT</b><small id="menuOnslaught">Endless survival</small></button>
+        <button class="btn" data-go="armory"><b>ARMORY</b><small>Weapons &amp; upgrades</small></button>
+        <button class="btn" data-go="settings"><b>SETTINGS</b><small>Graphics, audio, controls</small></button>
+        <button class="btn" data-go="help"><b>HOW TO PLAY</b><small>Controls &amp; tips</small></button>
+      </nav>
+    </div>
+    <div class="menu-right">
+      <div class="profile">
+        <div class="rank-badge" id="rankLvl">1</div>
+        <div class="profile-info">
+          <div class="rank-name" id="rankName">RECRUIT</div>
+          <div class="xp-bar"><i id="xpFill"></i></div>
+          <div class="profile-row"><span id="xpText">0 / 1500 XP</span><span class="credits"><i class="cr"></i><span id="menuCredits">0</span></span></div>
+        </div>
+      </div>
+    </div>
+    <div class="menu-foot">KESTREL STATION // SECTOR 07 // STATUS: <em>COMPROMISED</em></div>
+  </section>
+
+  <!-- MISSION SELECT -->
+  <section id="missions" class="screen panelscreen">
+    <header class="phead"><button class="back" data-go="menu">&#8592; BACK</button><h2>CAMPAIGN</h2><span class="credits"><i class="cr"></i><span class="creditsVal">0</span></span></header>
+    <div class="pbody split">
+      <div class="mlist" id="missionList"></div>
+      <div class="mdetail">
+        <div class="md-sub" id="mdSub"></div>
+        <h3 id="mdName"></h3>
+        <div class="md-stars" id="mdStars"></div>
+        <p id="mdBrief"></p>
+        <div class="md-obj" id="mdObj"></div>
+        <div class="md-row"><span>BEST SCORE</span><b id="mdBest">—</b></div>
+        <div class="md-row"><span>REWARD</span><b id="mdReward"></b></div>
+        <div class="diff" id="diffRow"></div>
+        <div class="diff-desc" id="diffDesc"></div>
+        <button class="btn primary wide" id="btnDeploy"><b>DEPLOY</b></button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ARMORY -->
+  <section id="armory" class="screen panelscreen">
+    <header class="phead"><button class="back" data-go="menu">&#8592; BACK</button><h2>ARMORY</h2><span class="credits"><i class="cr"></i><span class="creditsVal">0</span></span></header>
+    <div class="pbody split">
+      <div class="wlist" id="weaponList"></div>
+      <div class="wdetail">
+        <div class="md-sub" id="wdCls"></div>
+        <h3 id="wdName"></h3>
+        <p id="wdDesc"></p>
+        <div class="statbars" id="wdStats"></div>
+        <div class="upgrades" id="wdUp"></div>
+        <button class="btn primary wide" id="btnBuy"><b>PURCHASE</b></button>
+      </div>
+    </div>
+    <div class="perks"><h4>OPERATOR AUGMENTS</h4><div class="perkrow" id="perkRow"></div></div>
+  </section>
+
+  <!-- SETTINGS -->
+  <section id="settings" class="screen panelscreen narrow">
+    <header class="phead"><button class="back" id="settingsBack">&#8592; BACK</button><h2>SETTINGS</h2><span></span></header>
+    <div class="pbody form">
+      <label>GRAPHICS QUALITY<select id="setQuality"><option value="auto">Auto</option><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option><option value="ultra">Ultra</option></select></label>
+      <label>MOUSE SENSITIVITY<span class="val" id="vSens"></span><input type="range" id="setSens" min="0.2" max="3" step="0.05"></label>
+      <label>FIELD OF VIEW<span class="val" id="vFov"></span><input type="range" id="setFov" min="60" max="100" step="1"></label>
+      <label>MASTER VOLUME<span class="val" id="vMaster"></span><input type="range" id="setMaster" min="0" max="1" step="0.01"></label>
+      <label>EFFECTS VOLUME<span class="val" id="vSfx"></span><input type="range" id="setSfx" min="0" max="1" step="0.01"></label>
+      <label>MUSIC VOLUME<span class="val" id="vMusic"></span><input type="range" id="setMusic" min="0" max="1" step="0.01"></label>
+      <label class="chk"><input type="checkbox" id="setInvert">INVERT Y AXIS</label>
+      <label class="chk"><input type="checkbox" id="setDmg">DAMAGE NUMBERS</label>
+      <label class="chk"><input type="checkbox" id="setFps">SHOW FPS</label>
+      <button class="btn danger" id="btnReset"><b>RESET PROGRESS</b></button>
+    </div>
+  </section>
+
+  <!-- HELP -->
+  <section id="help" class="screen panelscreen narrow">
+    <header class="phead"><button class="back" data-go="menu">&#8592; BACK</button><h2>HOW TO PLAY</h2><span></span></header>
+    <div class="pbody help">
+      <div class="keys">
+        <div><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd><span>Move</span></div>
+        <div><kbd>MOUSE</kbd><span>Look</span></div>
+        <div><kbd>LMB</kbd><span>Fire</span></div>
+        <div><kbd>RMB</kbd><span>Aim down sights</span></div>
+        <div><kbd>SHIFT</kbd><span>Sprint</span></div>
+        <div><kbd>SPACE</kbd><span>Jump</span></div>
+        <div><kbd>C</kbd><span>Crouch &middot; Slide while sprinting</span></div>
+        <div><kbd>R</kbd><span>Reload</span></div>
+        <div><kbd>1</kbd>–<kbd>7</kbd> / <kbd>WHEEL</kbd><span>Switch weapon</span></div>
+        <div><kbd>X</kbd><span>Previous weapon</span></div>
+        <div><kbd>G</kbd><span>Frag grenade</span></div>
+        <div><kbd>F</kbd><span>Melee strike</span></div>
+        <div><kbd>Q</kbd><span>Neural Focus (slow time)</span></div>
+        <div><kbd>E</kbd><span>Interact</span></div>
+        <div><kbd>P</kbd> / <kbd>ESC</kbd><span>Pause</span></div>
+      </div>
+      <ul class="tips">
+        <li>Your <b>shield</b> recharges out of combat. Health only returns from pickups.</li>
+        <li>Aim for glowing <b>weak points</b> — visors, eyes and reactors deal critical damage.</li>
+        <li><b>Bulwark</b> shields shrug off bullets. Explosives and the Arc Lance tear them down.</li>
+        <li><b>Lancers</b> telegraph their shot with a beam. Break line of sight before it fires.</li>
+        <li>Chain kills to build your <b>combo multiplier</b> and charge Neural Focus.</li>
+        <li>Red barrels explode. So do Skitters — keep your distance.</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- DEPLOYING -->
+  <section id="deploy" class="screen"><div class="deploy-txt">DEPLOYING<i></i></div></section>
+
+  <!-- HUD -->
+  <section id="hud" class="screen">
+    <div id="scope"></div>
+    <div id="cross"><i class="c-t"></i><i class="c-b"></i><i class="c-l"></i><i class="c-r"></i><i class="c-d"></i></div>
+    <div id="hitm"></div>
+    <div id="dmgDirs"></div>
+    <div id="nums"></div>
+    <div id="waypoint"><i></i><span></span></div>
+
+    <div class="hud-tl">
+      <div class="obj-title" id="objTitle"></div>
+      <div class="obj-sub" id="objSub"></div>
+    </div>
+    <div class="hud-tr">
+      <canvas id="radar" width="150" height="150"></canvas>
+      <div class="score"><span id="scoreVal">0</span><em id="comboVal"></em></div>
+      <div class="feed" id="feed"></div>
+    </div>
+    <div id="bossbar"><div class="boss-name" id="bossName">COLOSSUS</div><div class="boss-track"><i id="bossFill"></i></div></div>
+    <div id="banner"><div class="b-title" id="bannerTitle"></div><div class="b-sub" id="bannerSub"></div></div>
+    <div id="announce"></div>
+    <div id="toasts"></div>
+    <div id="progress"><div class="pr-label" id="prLabel"></div><div class="pr-track"><i id="prFill"></i></div></div>
+    <div id="prompt"><kbd>E</kbd><span id="promptTxt"></span></div>
+    <div id="hint"></div>
+    <div id="clicklock">CLICK TO ENGAGE</div>
+
+    <div class="hud-bl">
+      <div class="bar shield"><i id="shFill"></i></div>
+      <div class="bar health"><i id="hpFill"></i></div>
+      <div class="vitals"><span class="hp" id="hpVal">100</span><span class="sh" id="shVal">60</span></div>
+    </div>
+    <div class="hud-bc">
+      <div class="focus"><i id="focusFill"></i></div>
+      <div class="focus-lbl"><kbd>Q</kbd> FOCUS</div>
+    </div>
+    <div class="hud-br">
+      <div class="wname" id="wName"></div>
+      <div class="ammo"><span id="ammoVal">30</span><em id="resVal">/ 180</em></div>
+      <div class="sub-row"><span class="nades" id="nades"></span><span class="slots" id="slots"></span></div>
+    </div>
+    <div id="fps"></div>
+  </section>
+
+  <!-- PAUSE -->
+  <section id="pause" class="screen overlay">
+    <div class="card">
+      <h2>PAUSED</h2>
+      <button class="btn primary wide" id="btnResume"><b>RESUME</b></button>
+      <button class="btn wide" id="btnPauseSettings"><b>SETTINGS</b></button>
+      <button class="btn wide" id="btnRestart"><b>RESTART MISSION</b></button>
+      <button class="btn wide" id="btnQuit"><b>ABORT TO MENU</b></button>
+    </div>
+  </section>
+
+  <!-- DEATH -->
+  <section id="death" class="screen overlay red">
+    <div class="card">
+      <div class="md-sub">SIGNAL LOST</div>
+      <h2>OPERATIVE DOWN</h2>
+      <div class="res-grid" id="deathStats"></div>
+      <button class="btn primary wide" id="btnRevive"><b>&#9654; REVIVE</b><small>Watch an ad to get back in the fight</small></button>
+      <button class="btn wide" id="btnRetry"><b>RETRY</b></button>
+      <button class="btn wide" id="btnDeathEnd"><b>END RUN</b></button>
+    </div>
+  </section>
+
+  <!-- RESULTS -->
+  <section id="results" class="screen overlay">
+    <div class="card widecard">
+      <div class="md-sub" id="resSub"></div>
+      <h2 id="resTitle">MISSION COMPLETE</h2>
+      <div class="md-stars big" id="resStars"></div>
+      <div class="res-grid" id="resGrid"></div>
+      <div class="res-earn"><div><span>SCORE</span><b id="resScore">0</b></div><div><span>CREDITS</span><b id="resCredits">0</b></div><div><span>XP</span><b id="resXp">0</b></div></div>
+      <div class="res-note" id="resNote"></div>
+      <button class="btn wide gold" id="btnDouble"><b>&#9654; DOUBLE CREDITS</b><small>Watch an ad</small></button>
+      <div class="res-btns">
+        <button class="btn primary" id="btnNext"><b>NEXT MISSION</b></button>
+        <button class="btn" id="btnResArmory"><b>ARMORY</b></button>
+        <button class="btn" id="btnResMenu"><b>MENU</b></button>
+      </div>
+    </div>
+  </section>
+
+  <!-- TOUCH CONTROLS -->
+  <div id="touch">
+    <div class="look"></div>
+    <div class="stick"><div class="knob"></div></div>
+    <button class="tb t-fire" data-act="fire" data-look="1">FIRE</button>
+    <button class="tb t-ads" data-act="ads" data-toggle="1">AIM</button>
+    <button class="tb t-jump" data-act="jump">JUMP</button>
+    <button class="tb t-crouch" data-act="crouch" data-toggle="1">CRCH</button>
+    <button class="tb t-reload" data-act="reload">RLD</button>
+    <button class="tb t-next" data-act="next">SWAP</button>
+    <button class="tb t-nade" data-act="grenade">FRAG</button>
+    <button class="tb t-melee" data-act="melee">HIT</button>
+    <button class="tb t-focus" data-act="focus">FOCUS</button>
+    <button class="tb t-use" data-act="interact">USE</button>
+    <button class="tb t-pause" data-act="pause">II</button>
+  </div>
+</div>
+<script type="module" src="js/main.js"></script>
+</body>
+</html>

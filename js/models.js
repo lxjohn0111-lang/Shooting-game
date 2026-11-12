@@ -66,7 +66,8 @@ function hand(b, x, y, z, o = {}) { // simple gloved fist + forearm; o.rx/ry/rz 
   g.box(0.08, 0.05, 0.04, 0, -0.012, -0.06, C.glove, { bevel: 0.016, rx: 0.5, ...POLY });        // curled fingers
   g.box(0.03, 0.03, 0.07, -0.05 * (o.left ? -1 : 1), 0.0, -0.03, C.glove, { bevel: 0.012, ry: 0.4 * (o.left ? -1 : 1), ...POLY }); // thumb
   g.box(0.09, 0.016, 0.03, 0, 0.026, 0.01, [0.02, 0.02, 0.022], { bevel: 0.006, ...POLY });       // knuckle guard
-  g.cyl(0.036, 0.046, 0.34, 0, -0.005, 0.22, C.sleeve, { axis: 'z', seg: 10, ...POLY, rough: 1.6 });
+  g.cyl(0.04, 0.058, 0.3, 0, -0.008, 0.2, C.sleeve, { axis: 'z', seg: 12, ...POLY, rough: 1.6 });
+  g.box(0.07, 0.03, 0.09, 0, 0.035, 0.14, [0.03, 0.03, 0.032], { bevel: 0.01, ...POLY });
   g.cyl(0.04, 0.04, 0.03, 0, -0.005, 0.06, [0.03, 0.03, 0.03], { axis: 'z', seg: 10, ...POLY });
   const geo = g.build(); geo.applyMatrix4(new THREE.Matrix4().compose(new THREE.Vector3(x, y, z), new THREE.Quaternion().setFromEuler(new THREE.Euler(o.rx || 0, o.ry || 0, o.rz || 0, 'YXZ')), new THREE.Vector3(1, 1, 1)));
   return geo;

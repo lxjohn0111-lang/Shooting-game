@@ -13,7 +13,7 @@ export class Player {
     this.body = { x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, r: 0.38, h: 1.8, onGround: true, gravity: 22, groundY: 0, landV: 0 };
     this.yaw = 0; this.pitch = 0; this.eye = 1.65; this.fov = 75; this.baseFov = 75;
     this.rig = new THREE.Group(); this.rig.scale.setScalar(S); cam.add(this.rig);
-    this.holder = new THREE.Group(); this.rig.add(this.holder);
+    this.holder = new THREE.Group(); this.holder.scale.set(1, 1, 0.62); this.rig.add(this.holder);
     this.models = {};
     this.reset();
   }
@@ -306,7 +306,7 @@ export class Player {
     const m = this.model, h = this.holder, def = this.wdef, w = this.weapon, st = this.stat(w.id);
     const D = w.id === 'pistol' ? 0.36 : def.scope ? 0.16 : 0.25;
     const a = this.adsT, sp = this.sprintT * (1 - a);
-    let px = lerp(m.hip.x, -m.sight.x, a), py = lerp(m.hip.y, -m.sight.y, a), pz = lerp(m.hip.z, -D - m.sight.z, a);
+    let px = lerp(m.hip.x + 0.015, -m.sight.x, a), py = lerp(m.hip.y - 0.02, -m.sight.y, a), pz = lerp(m.hip.z - 0.11, -D - m.sight.z * 0.62, a);
     let rx = 0, ry = 0, rz = 0;
     const bobK = this.bobAmp * (1 - a * 0.88);
     px += Math.cos(this.bob) * 0.011 * bobK; py += -Math.abs(Math.sin(this.bob)) * 0.012 * bobK + Math.sin(t * 1.4) * 0.0025 * (1 - a * 0.8);

@@ -60,7 +60,7 @@ void surf(vec2 uv,out vec3 col,out float h,out float r,out float m,out float mas
   base+=agg*(w.z-.4)*.07; base+= (smoothstep(.3,.0,wb.x)*step(.9,wb.z))*.10;
   base*=.85+.3*n2; base*=1.-.75*crack;
   col=base; h=.5+agg*.12*(w.z)+(n2-.5)*.08-crack*.5-patchm*.03;
-  r=clamp(.9-wet*.35-agg*.1,.3,1.); m=0.; mask=0.;
+  r=clamp(.93-wet*.16-agg*.05,.5,1.); m=0.; mask=0.;
 }`,
   wall: /* glsl */`
 void surf(vec2 uv,out vec3 col,out float h,out float r,out float m,out float mask){
@@ -107,7 +107,7 @@ void surf(vec2 uv,out vec3 col,out float h,out float r,out float m,out float mas
   vec2 rg=fract(uv*16.)-.5; float rivLine=step(edge,.075)*step(.03,edge);
   float riv=smoothstep(.2,.12,length(rg))*step(min(ed.x,ed.y),.062)*step(.0315,min(ed.x,ed.y));
   float chipn=fbm(uv+2.9,28.,5)+smoothstep(.06,.0,edge)*.16+riv*.1;
-  float chip=smoothstep(.69,.73,chipn);
+  float chip=smoothstep(.76,.8,chipn);
   float scr=smoothstep(.83,.88,fbm2(uv+.17,vec2(160.,5.),2))*smoothstep(.5,.7,fbm(uv+7.7,4.,2));
   scr=max(scr,smoothstep(.85,.9,fbm2(uv+.57,vec2(6.,140.),2))*smoothstep(.55,.7,fbm(uv+3.7,4.,2)));
   float grime=smoothstep(.35,.8,fbm(uv+1.1,3.,5))+smoothstep(.1,.0,edge)*.35;

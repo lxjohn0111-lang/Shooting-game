@@ -55,6 +55,7 @@ class Director {
     ui.objective(ph.text.toUpperCase(), sub);
   }
   enqueue(list, mult = 1, eliteChance = 0) { for (const [type, n] of list) for (let i = 0; i < Math.round(n * mult); i++) this.queue.push({ type, elite: Math.random() < eliteChance && type !== 'crawler' && type !== 'heavy' }); for (let i = this.queue.length - 1; i > 0; i--) { const j = (Math.random() * (i + 1)) | 0; [this.queue[i], this.queue[j]] = [this.queue[j], this.queue[i]]; } }
+  typeCount(t) { let n = 0; for (const e of this.game.enemies.list) if (!e.dead && e.type === t) n++; for (const q of this.queue) if (q.type === t) n++; return n; }
   spawnGroup(list, near = false) { this.enqueue(list); this.nearSpawn = near; }
   pickSpawn(type) {
     const g = this.game, L = g.level, p = g.player.body, cand = [];
@@ -79,7 +80,7 @@ class Director {
     // spawn queue
     this.spawnT -= dt;
     if (this.queue.length && this.spawnT <= 0 && alive < this.maxAlive) { this.spawnT = 0.45; this.doSpawn(this.queue.shift()); }
-    const pressure = () => { this.pressT -= dt; if (this.pressT <= 0 && ph.pressure) { const cap = Math.min(this.maxAlive, 6 + this.elapsed / 30); if (alive + this.queue.length < cap) { const e = pick(ph.pressure); this.enqueue([[e[0], Math.max(1, Math.round(e[1] * rand(0.6, 1)))]]); } this.pressT = rand(5, 8); } };
+    const pressure = () => { this.pressT -= dt; if (this.pressT <= 0 && ph.pressure) { const cap = Math.min(this.maxAlive, 6 + this.elapsed / 30); if (alive + this.queue.length < cap) { let e = pick(ph.pressure); const CAP = { lancer: 2, heavy: 2 }; if (CAP[e[0]] !== undefined && this.typeCount(e[0]) >= CAP[e[0]]) e = ph.pressure[0]; this.enqueue([[e[0], Math.max(1, Math.round(e[1] * rand(0.6, 1)))]]); } this.pressT = rand(5, 8); } };
     this.marker = null; this.prompt = null;
     if (ph.type === 'eliminate') {
       if (!this.waveActive) { this.waveT -= dt; if (this.waveT <= 0) { this.waveActive = true; const w = ph.waves[this.wave]; this.enqueue(w); ui.banner(`WAVE ${this.wave + 1}`, 'HOSTILES INBOUND'); g.audio.play('wave', { vol: 0.8 }); this.wave++; this.hud(); } }
@@ -307,7 +308,7 @@ export class Game {
   }
   makeCore(x, z) {
     const b = new Builder(2.2), dark = [0.07, 0.075, 0.085], grey = [0.3, 0.31, 0.33], yel = [0.78, 0.55, 0.06];
-    b.cyl(1.25, 1.4, 0.4, 0, 0.2, 0, dark, { seg: 20 }); b.cyl(0.55, 0.55, 2.6, 0, 1.7, 0, [0.3, 0.75, 1], { seg: 18, emi: 5, metal: 0 });
+    b.cyl(1.25, 1.4, 0.4, 0, 0.2, 0, dark, { seg: 20 }); b.cyl(0.55, 0.55, 2.6, 0, 1.7, 0, [0.3, 0.75, 1], { seg: 18, emi: 1.3, metal: 0 });
     for (const y of [0.6, 1.7, 2.8]) b.cyl(0.8, 0.8, 0.22, 0, y, 0, grey, { seg: 20 }); b.cyl(1.0, 0.8, 0.3, 0, 3.1, 0, yel, { seg: 20 });
     for (let k = 0; k < 4; k++) { const a = k / 4 * TAU + 0.78; b.box(0.16, 2.7, 0.16, Math.cos(a) * 0.86, 1.7, Math.sin(a) * 0.86, dark, { bevel: 0.03, ry: -a }); }
     const mat = this._objMat(), mesh = b.mesh(mat), group = new THREE.Group(); group.add(mesh); group.position.set(x, 0, z); this.gfx.scene.add(group);
@@ -409,7 +410,7 @@ export class Game {
     gfx.render(dt, rdt);
     // dynamic resolution
     this.dynT += rdt;
-    if (this.dynT > 2.5 && (this.state === 'playing')) { this.dynT = 0; const q = gfx.q; if (this.fpsAvg < 42 && gfx.dyn > 0.55) { gfx.dyn = Math.max(0.55, gfx.dyn - 0.12); this.applyDyn(); } else if (this.fpsAvg > 58.5 && gfx.dyn < 1 && this.settings.quality === 'auto') { gfx.dyn = Math.min(1, gfx.dyn + 0.06); this.applyDyn(); } }
+    if (this.dynT > 2.5 && this.state === 'playing' && !this.noDrs) { this.dynT = 0; const q = gfx.q; if (this.fpsAvg < 42 && gfx.dyn > 0.55) { gfx.dyn = Math.max(0.55, gfx.dyn - 0.12); this.applyDyn(); } else if (this.fpsAvg > 58.5 && gfx.dyn < 1 && this.settings.quality === 'auto') { gfx.dyn = Math.min(1, gfx.dyn + 0.06); this.applyDyn(); } }
     if (this.settings.showFps) this.ui.fps(this.fpsAvg, gfx);
   }
   applyDyn() { const g = this.gfx, base = QUALITY[g.qualityName]; g.q = { ...base, scale: base.scale * g.dyn }; g.resize(); }
