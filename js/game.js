@@ -18,7 +18,7 @@ const _v = new THREE.Vector3();
 
 class Director {
   constructor(game) { this.game = game; this.reset(); }
-  reset() { this.queue = []; this.spawnT = 0; this.phaseI = -1; this.phase = null; this.done = false; this.objs = []; this.wave = 0; this.waveT = 0; this.pressT = 0; this.timer = 0; this.maxAlive = 14; this.elapsed = 0; this.waveActive = false; this.onslaught = false; this.marker = null; this.prompt = null; }
+  reset() { this.queue = []; this.spawnT = 0; this.phaseI = -1; this.phase = null; this.done = false; this.objs = []; this.wave = 0; this.waveT = 0; this.pressT = 0; this.timer = 0; this.maxAlive = 12; this.elapsed = 0; this.waveActive = false; this.onslaught = false; this.marker = null; this.prompt = null; }
   start(mission, onslaught) {
     this.reset(); this.mission = mission; this.onslaught = onslaught;
     if (onslaught) { this.phase = { type: 'onslaught', text: 'Survive the onslaught' }; this.waveT = 4; this.game.ui.objective('SURVIVE', 'Wave 1 incoming'); }
@@ -67,7 +67,11 @@ class Director {
   doSpawn(q) {
     const g = this.game, s = this.pickSpawn(q.type);
     const wave = this.onslaught ? this.wave : 0;
-    g.enemies.spawn(q.type, s.x, s.z, { elite: q.elite, hpMul: 1 + wave * 0.045, dmgMul: 1 + wave * 0.03 });
+    // difficulty curve: Onslaught starts soft and ramps per wave; campaign ramps per mission
+    let hpMul = 1, dmgMul = 1;
+    if (this.onslaught) { hpMul = 1 + Math.max(0, wave - 3) * 0.035; dmgMul = clamp(0.6 + wave * 0.08, 0.6, 1) * (1 + Math.max(0, wave - 6) * 0.025); }
+    else { const mi = Math.min(5, g.missionIndex || 0); dmgMul = [0.72, 0.82, 0.9, 0.97, 1.04, 1.1][mi]; hpMul = 0.88 + 0.04 * mi; }
+    g.enemies.spawn(q.type, s.x, s.z, { elite: q.elite, hpMul, dmgMul });
     if (q.type !== 'drone') { g.fx.spawnBeam(s.x, s.z, q.elite ? [1, 0.2, 0.7] : [1, 0.35, 0.15]); g.audio.play('spawn', { pos: { x: s.x, y: 1, z: s.z }, vol: 0.7, ref: 10, throttle: 0.1 }); }
   }
   onProp(prop) { // objective prop destroyed
@@ -79,8 +83,8 @@ class Director {
     const alive = g.enemies.alive();
     // spawn queue
     this.spawnT -= dt;
-    if (this.queue.length && this.spawnT <= 0 && alive < this.maxAlive) { this.spawnT = 0.45; this.doSpawn(this.queue.shift()); }
-    const pressure = () => { this.pressT -= dt; if (this.pressT <= 0 && ph.pressure) { const cap = Math.min(this.maxAlive, 6 + this.elapsed / 30); if (alive + this.queue.length < cap) { let e = pick(ph.pressure); const CAP = { lancer: 2, heavy: 2 }; if (CAP[e[0]] !== undefined && this.typeCount(e[0]) >= CAP[e[0]]) e = ph.pressure[0]; this.enqueue([[e[0], Math.max(1, Math.round(e[1] * rand(0.6, 1)))]]); } this.pressT = rand(5, 8); } };
+    if (this.queue.length && this.spawnT <= 0 && alive < this.maxAlive) { this.spawnT = this.onslaught ? Math.max(0.45, 1.05 - this.wave * 0.06) : 0.55; this.doSpawn(this.queue.shift()); }
+    const pressure = () => { this.pressT -= dt; if (this.pressT <= 0 && ph.pressure) { const cap = Math.min(this.maxAlive, 4 + this.elapsed / 40); if (alive + this.queue.length < cap) { let e = pick(ph.pressure); const CAP = { lancer: 2, heavy: 2 }; if (CAP[e[0]] !== undefined && this.typeCount(e[0]) >= CAP[e[0]]) e = ph.pressure[0]; this.enqueue([[e[0], Math.max(1, Math.round(e[1] * rand(0.6, 1)))]]); } this.pressT = rand(6, 9.5); } };
     this.marker = null; this.prompt = null;
     if (ph.type === 'eliminate') {
       if (!this.waveActive) { this.waveT -= dt; if (this.waveT <= 0) { this.waveActive = true; const w = ph.waves[this.wave]; this.enqueue(w); ui.banner(`WAVE ${this.wave + 1}`, 'HOSTILES INBOUND'); g.audio.play('wave', { vol: 0.8 }); this.wave++; this.hud(); } }
@@ -103,7 +107,7 @@ class Director {
       if (this.left <= 0) { this.waveT -= dt; if (this.waveT <= 0) this.next(); }
       else { pressure(); let n = null, nd = 1e9; for (const o of this.objs) if (!o.dead) { const d = Math.hypot(o.x - p.x, o.z - p.z); if (d < nd) { nd = d; n = o; } } if (n) this.marker = { x: n.x, y: 3.2, z: n.z, kind: 'obj' }; }
     } else if (ph.type === 'survive') {
-      this.timer -= dt; pressure(); if (this.pressT > 4.5) this.pressT = 4.5 - Math.min(2.5, this.elapsed / 60);
+      this.timer -= dt; pressure(); if (this.pressT > 5.5) this.pressT = 5.5 - Math.min(2.5, this.elapsed / 70);
       ui.objective(ph.text.toUpperCase(), `Extraction in ${Math.max(0, Math.ceil(this.timer))}s`);
       if (this.timer <= 0) this.next();
     } else if (ph.type === 'extract') {
@@ -116,14 +120,14 @@ class Director {
       if (!this.waveActive) {
         this.waveT -= dt;
         if (this.waveT <= 0) {
-          this.wave++; this.waveActive = true; const w = this.wave; let budget = 6 + w * 3.2; const list = {};
-          const avail = [['drone', 1], ['trooper', 1]]; if (w >= 2) avail.push(['crawler', 1.2]); if (w >= 4) avail.push(['lancer', 1]); if (w >= 6) avail.push(['heavy', 0.6]);
-          let guard = 0; while (budget > 0.9 && guard++ < 200) { const [t] = pick(avail); const c = ENEMIES[t].cost; if (c > budget + 1) continue; if (t === 'heavy' && (list.heavy || 0) >= 1 + Math.floor(w / 8)) continue; list[t] = (list[t] || 0) + 1; budget -= c; }
-          if (w % 5 === 0) list.heavy = (list.heavy || 0) + 1;
-          this.enqueue(Object.entries(list), 1, clamp((w - 3) * 0.035, 0, 0.4)); this.maxAlive = Math.min(20, 12 + Math.floor(w / 3));
-          ui.banner(`WAVE ${w}`, w % 5 === 0 ? 'HEAVY ASSAULT' : 'HOSTILES INBOUND'); g.audio.play('wave', { vol: 0.8 }); this.hud();
+          this.wave++; this.waveActive = true; const w = this.wave; let budget = 4 + w * 1.6 + w * w * 0.07; const list = {};
+          const avail = [['drone', 1], ['trooper', 1]]; if (w >= 3) avail.push(['crawler', 1.2]); if (w >= 5) avail.push(['lancer', 1]); if (w >= 8) avail.push(['heavy', 0.6]);
+          let guard = 0; while (budget > 0.9 && guard++ < 200) { const [t] = pick(avail); const c = ENEMIES[t].cost; if (c > budget + 1) continue; if (t === 'heavy' && (list.heavy || 0) >= 1 + Math.floor((w - 8) / 6)) continue; if (t === 'lancer' && (list.lancer || 0) >= 1 + Math.floor(w / 6)) continue; list[t] = (list[t] || 0) + 1; budget -= c; }
+          const heavyWave = w >= 10 && w % 5 === 0; if (heavyWave) list.heavy = (list.heavy || 0) + 1;
+          this.enqueue(Object.entries(list), 1, clamp((w - 5) * 0.03, 0, 0.4)); this.maxAlive = Math.min(18, 6 + w);
+          ui.banner(`WAVE ${w}`, heavyWave ? 'HEAVY ASSAULT' : 'HOSTILES INBOUND'); g.audio.play('wave', { vol: 0.8 }); this.hud();
         }
-      } else if (!this.queue.length && alive === 0) { this.waveActive = false; this.waveT = 6; g.addScore(250 * this.wave, `WAVE ${this.wave} CLEARED`); g.dropSupply(); ui.toast('WAVE CLEARED — RESUPPLY INBOUND', 'good', 2); g.stats.wave = this.wave; }
+      } else if (!this.queue.length && alive === 0) { this.waveActive = false; this.waveT = 7; g.addScore(250 * this.wave, `WAVE ${this.wave} CLEARED`); g.dropSupply(); ui.toast('WAVE CLEARED — RESUPPLY INBOUND', 'good', 2); g.stats.wave = this.wave; }
       else if (alive <= 2 && !this.queue.length) { for (const e of g.enemies.list) if (!e.dead) { this.marker = { x: e.pos.x, y: e.pos.y + e.h + 0.4, z: e.pos.z, kind: 'enemy' }; break; } }
     }
     if (ph.type !== 'uplink' || !this.uploading) { if (ph.type === 'uplink') ui.progress(false); }
@@ -273,7 +277,8 @@ export class Game {
     if (e.type !== 'boss') {
       const w = p.weapon, st = p.stat(w.id), lowAmmo = st.reserve !== Infinity && w.reserve < st.reserve * 0.35, lowHp = p.health < p.maxHealth * 0.5;
       const r = Math.random(); let kind = null;
-      if (r < (lowHp ? 0.2 : 0.07)) kind = 'health'; else if (r < 0.2 + (lowAmmo ? 0.2 : 0.06)) kind = 'ammo'; else if (r < 0.34 && p.grenades < p.maxGrenades) kind = Math.random() < 0.4 ? 'grenade' : null; else if (r > 0.94) kind = 'shield';
+      const hC = lowHp ? 0.3 : 0.1, aC = hC + (lowAmmo ? 0.24 : 0.12), gC = aC + 0.06;
+      if (r < hC) kind = 'health'; else if (r < aC) kind = 'ammo'; else if (r < gC && p.grenades < p.maxGrenades) kind = 'grenade'; else if (r > 0.92) kind = 'shield';
       if (e.type === 'heavy') { this.spawnPickup('ammo', e.pos.x + 0.6, e.pos.z); kind = 'health'; }
       if (kind) this.spawnPickup(kind, e.pos.x, e.pos.z);
     } else { this.sdk.happytime(); this.slowT = 2.5; }

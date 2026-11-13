@@ -69,7 +69,7 @@ export class Player {
     if (this.dead || this.invuln > 0 || this.game.godMode) return;
     amount *= this.game.diff.dmg;
     const g = this.game;
-    this.shieldDelay = 4.2 - 0.4 * (g.save.data.perks.shield || 0);
+    this.shieldDelay = 3.6 - 0.35 * (g.save.data.perks.shield || 0);
     if (this.shield > 0 && !opts.pierceShield) {
       const s = Math.min(this.shield, amount); this.shield -= s; amount -= s * 1.0;
       g.gfx.fx.uShield.value = Math.min(1, g.gfx.fx.uShield.value + 0.6);

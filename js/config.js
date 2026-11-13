@@ -30,9 +30,9 @@ export const PERKS = [
 export const perkCost = (p, lvl) => Math.round(p.base * (1 + lvl * 0.85));
 
 export const DIFFICULTY = {
-  recruit: { name: 'RECRUIT', hp: 0.8, dmg: 0.6, credits: 0.8, desc: 'Enemies are weaker.' },
-  veteran: { name: 'VETERAN', hp: 1.0, dmg: 1.0, credits: 1.0, desc: 'The intended experience.' },
-  elite: { name: 'ELITE', hp: 1.35, dmg: 1.5, credits: 1.4, desc: 'Lethal. +40% credits.' },
+  recruit: { name: 'RECRUIT', hp: 0.75, dmg: 0.5, credits: 0.8, desc: 'Enemies are weaker.' },
+  veteran: { name: 'VETERAN', hp: 0.95, dmg: 0.82, credits: 1.0, desc: 'The intended experience.' },
+  elite: { name: 'ELITE', hp: 1.3, dmg: 1.35, credits: 1.4, desc: 'Lethal. +40% credits.' },
 };
 
 export const ENEMIES = {
@@ -47,10 +47,10 @@ export const ENEMIES = {
 // Missions. phases run in order. wave entries: [type, count]
 export const MISSIONS = [
   {
-    id: 'm1', name: 'COLD START', sub: 'Perimeter Yard — 18:42', theme: 'yard', sky: 'golden', seed: 3, reward: 600, par: 9000,
+    id: 'm1', name: 'COLD START', sub: 'Perimeter Yard — 18:42', theme: 'yard', sky: 'golden', seed: 3, reward: 600, par: 7000,
     brief: 'Kestrel Station has gone dark. Its autonomous security grid is executing an unknown directive: VANTA. Breach the perimeter yard and clear out the first responders.',
     phases: [
-      { type: 'eliminate', text: 'Eliminate hostile machines', waves: [[['drone', 4]], [['trooper', 3], ['drone', 3]], [['trooper', 5], ['drone', 4]]] },
+      { type: 'eliminate', text: 'Eliminate hostile machines', waves: [[['drone', 3]], [['trooper', 2], ['drone', 2]], [['trooper', 4], ['drone', 3]]] },
     ],
   },
   {
