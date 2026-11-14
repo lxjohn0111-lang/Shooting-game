@@ -31,7 +31,7 @@ export class Projectiles {
     const d = Math.hypot(x - b.x, y - (b.y + 1), z - b.z);
     g.audio.play(radius > 6.5 ? 'explosion_big' : radius < 3.6 ? 'explosion_small' : 'explosion', { pos: { x, y, z }, vol: 1, ref: 12, reverb: 0.8, max: 200 });
     p.shake = Math.min(1, p.shake + clamp(1.4 - d / (radius * 3.5), 0, 1));
-    if (d < radius * 1.15 && !p.dead) {
+    if (dmg > 0 && d < radius * 1.15 && !p.dead) {
       if (g.level.los(x, y + 0.4, z, b.x, b.y + 1.0, b.z)) { const k = clamp(1 - d / (radius * 1.15), 0, 1); p.damage(dmg * k * (owner === 'player' ? 0.3 : 0.55), { x, y, z }); const l = Math.hypot(b.x - x, b.z - z) || 1; b.vx += (b.x - x) / l * 6 * k; b.vz += (b.z - z) / l * 6 * k; b.vy += 3.5 * k; b.onGround = false; }
     }
     if (owner !== 'enemyOnly') {

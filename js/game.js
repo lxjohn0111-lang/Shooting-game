@@ -114,7 +114,7 @@ class Director {
       const b = this.objs[0]; this.marker = { x: b.x, y: 2.5, z: b.z, kind: 'obj' }; pressure();
       if (Math.hypot(b.x - p.x, b.z - p.z) < 3.5) this.next();
     } else if (ph.type === 'boss') {
-      const boss = g.enemies.boss; if (boss) ui.bossHp(boss.hp / boss.maxHp); else if (!this.bossDead) { this.bossDead = true; ui.bossBar(false); this.waveT = 3.5; for (const e of g.enemies.list) if (!e.dead) e.die(0, 1, 0, {}); }
+      const boss = g.enemies.boss; if (boss && !boss.dead) ui.bossHp(boss.hp / boss.maxHp); else if (!this.bossDead) { this.bossDead = true; ui.bossBar(false); this.waveT = 5.8; for (const e of g.enemies.list) if (!e.dead) e.die(0, 1, 0, {}); }
       if (this.bossDead) { this.waveT -= dt; if (this.waveT <= 0) this.next(); }
     } else if (ph.type === 'onslaught') {
       if (!this.waveActive) {
@@ -215,7 +215,7 @@ export class Game {
   resume() { if (this.state !== 'paused') return; this.state = 'playing'; this.input.enabled = true; this.input.lock(); this.sdk.gameplayStart(); this.ui.show('hud'); this.audio.setMuffle(0); this.last = performance.now(); }
   toMenu() {
     this.state = 'menu'; this.input.enabled = false; this.input.unlock(); this.sdk.gameplayStop(); this.audio.setMuffle(0); this.audio.setSlowmo(0); this.audio.stopLoops(); this.audio.setMusic('menu');
-    this.player.rig.visible = false; this.timeScale = 1; const f = this.gfx.fx; f.uDamage.value = f.uLow.value = f.uFocus.value = f.uShield.value = 0; f.uFade.value = 0;
+    this.player.rig.visible = false; this.timeScale = 1; const f = this.gfx.fx; f.uDamage.value = f.uLow.value = f.uFocus.value = f.uShield.value = f.uFlash.value = 0; f.uFade.value = 0;
     this.enemies.clear(); this.projectiles.reset(); this.director.reset(); this.ui.bossBar(false); this.ui.show('menu'); this.menuT = 0;
     this.gfx.camera.fov = 60; this.gfx.camera.updateProjectionMatrix();
   }
@@ -226,7 +226,7 @@ export class Game {
   }
   async revive() {
     const ok = await this.showAd('rewarded'); if (!ok) { this.ui.toast('NO AD AVAILABLE', 'warn', 2); return false; }
-    const p = this.player; p.dead = false; p.health = p.maxHealth; p.shield = p.maxShield; p.invuln = 3.5; p.roll = 0; this.stats.revived = true; this.projectiles.bolts.length = 0;
+    const p = this.player; p.dead = false; p.health = p.maxHealth; p.shield = p.maxShield; p.invuln = 3.5; p.roll = 0; p.pitch = 0; p.eye = 1.65; this.stats.revived = true; this.projectiles.bolts.length = 0;
     for (const e of this.enemies.list) if (!e.dead && e.type !== 'boss' && Math.hypot(e.pos.x - p.body.x, e.pos.z - p.body.z) < 9) e.hit(9999, e.pos.x, e.pos.y + 1, e.pos.z, 0, 1, 0, { explosive: true });
     this.fx.ring(p.body.x, 0.3, p.body.z, 1, 18, [0.3, 0.8, 1], 0.6, 4);
     this.state = 'playing'; this.ui.show('hud'); this.ui.hudAll(p); this.input.enabled = true; this.input.lock(); this.sdk.gameplayStart(); this.audio.setMuffle(0); this.last = performance.now();
@@ -281,7 +281,7 @@ export class Game {
       if (r < hC) kind = 'health'; else if (r < aC) kind = 'ammo'; else if (r < gC && p.grenades < p.maxGrenades) kind = 'grenade'; else if (r > 0.92) kind = 'shield';
       if (e.type === 'heavy') { this.spawnPickup('ammo', e.pos.x + 0.6, e.pos.z); kind = 'health'; }
       if (kind) this.spawnPickup(kind, e.pos.x, e.pos.z);
-    } else { this.sdk.happytime(); this.slowT = 2.5; }
+    } else { this.sdk.happytime(); this.slowT = 1.3; }
     if (this.director.phase && !this.director.queue.length && this.enemies.alive() === 0 && (this.director.phase.type === 'eliminate' || this.director.phase.type === 'onslaught')) this.slowT = Math.max(this.slowT, 0.9);
     this.ui.hudScore(s);
   }
@@ -384,7 +384,7 @@ export class Game {
       for (const o of this.objectives) o.update(dt);
       const s = this.stats; if (s.comboT > 0) { s.comboT -= dt; if (s.comboT <= 0) { s.combo = 1; this.ui.hudScore(s); } } s.multiT -= dt;
       // post fx driven by state
-      f.uDamage.value = Math.max(0, f.uDamage.value - rdt * 1.6); f.uShield.value = Math.max(0, f.uShield.value - rdt * 2.2);
+      f.uFlash.value = Math.max(0, f.uFlash.value - rdt * 1.1); f.uDamage.value = Math.max(0, f.uDamage.value - rdt * 1.6); f.uShield.value = Math.max(0, f.uShield.value - rdt * 2.2);
       f.uLow.value = damp(f.uLow.value, p.dead ? 1 : clamp(1 - p.health / (p.maxHealth * 0.4), 0, 1), 5, rdt); f.uFocus.value = p.focusK;
       this.audio.setSlowmo(clamp((1 - this.timeScale) / 0.62, 0, 1) * (this.state === 'dead' ? 0.5 : 1));
       if (p.health < p.maxHealth * 0.3 && !p.dead) { this.hbT = (this.hbT || 0) - rdt; if (this.hbT <= 0) { this.hbT = 0.85; this.audio.play('heartbeat', { vol: 0.9, reverb: 0, rv: 0 }); } }

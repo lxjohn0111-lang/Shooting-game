@@ -248,14 +248,15 @@ export class FX {
     c.life = 2.2; c.p.copy(pos); c.v.copy(vel); c.r.set(rand(3), rand(3), rand(3)); c.rv.set(rand(-20, 20), rand(-20, 20), rand(-20, 20)); c.s = scale; c.floor = Math.max(0, this.game.player ? this.game.player.body.groundY : 0);
   }
 
-  // detach meshes as physical debris
-  addDebris(mesh, vel, life = 4, own = false) {
+  // detach meshes as physical debris. o: { floor, grow (scale-up factor for parts leaving the scaled view-model), rad, sound, sparks, av }
+  addDebris(mesh, vel, life = 4, own = false, o = {}) {
     mesh.updateWorldMatrix(true, false);
     const p = new THREE.Vector3(), q = new THREE.Quaternion(), s = new THREE.Vector3(); mesh.matrixWorld.decompose(p, q, s);
     if (mesh.parent) mesh.parent.remove(mesh);
     mesh.position.copy(p); mesh.quaternion.copy(q); mesh.scale.copy(s); this.scene.add(mesh);
-    if (this.debris.length > 70) { const d = this.debris.shift(); this.scene.remove(d.mesh); if (d.own) d.mesh.geometry.dispose(); }
-    this.debris.push({ mesh, v: vel, av: new THREE.Vector3(rand(-8, 8), rand(-8, 8), rand(-8, 8)), life, max: life, s0: s.x, own, rad: 0.18 * s.x, smoke: Math.random() < 0.5 });
+    if (this.debris.length > 80) { const d = this.debris.shift(); this.scene.remove(d.mesh); if (d.own) d.mesh.geometry.dispose(); }
+    const k = o.av ?? 8;
+    this.debris.push({ mesh, v: vel, av: new THREE.Vector3(rand(-k, k), rand(-k, k), rand(-k, k)), life, max: life, s0: s.clone(), own, rad: o.rad ?? 0.18 * s.x, floor: o.floor || 0, grow: o.grow || 1, sound: o.sound || null, sparks: !!o.sparks, smoke: Math.random() < 0.5, burn: o.sparks && Math.random() < 0.35, hit: false });
   }
 
   update(dt, cam) {
@@ -323,9 +324,18 @@ export class FX {
       const d = this.debris[i]; d.life -= dt;
       if (d.life <= 0) { this.scene.remove(d.mesh); if (d.own) d.mesh.geometry.dispose(); this.debris.splice(i, 1); continue; }
       const m = d.mesh; d.v.y -= 18 * dt; m.position.addScaledVector(d.v, dt);
-      if (m.position.y < d.rad) { m.position.y = d.rad; if (d.v.y < -1.5) { d.v.y *= -0.35; d.v.x *= 0.55; d.v.z *= 0.55; d.av.multiplyScalar(0.5); } else { d.v.set(0, 0, 0); d.av.multiplyScalar(0.8); } }
+      const fl = d.floor + d.rad;
+      if (m.position.y < fl) {
+        m.position.y = fl;
+        if (d.v.y < -1.5) {
+          if (!d.hit) { d.hit = true; if (d.sparks) { this.sparks(m.position.x, fl, m.position.z, 0, 1, 0, 4, [1, 0.75, 0.4], 4, 0.8); this.game.audio && this.game.audio.play('metal_hit', { pos: m.position, vol: 0.3, rv: 0.3, throttle: 0.06, ref: 3 }); } if (d.sound) this.game.audio && this.game.audio.play(d.sound, { pos: m.position, vol: 0.5, rv: 0.2, ref: 2 }); }
+          d.v.y *= -0.35; d.v.x *= 0.55; d.v.z *= 0.55; d.av.multiplyScalar(0.5);
+        } else { d.v.set(0, 0, 0); d.av.multiplyScalar(0.8); }
+      }
       m.rotation.x += d.av.x * dt; m.rotation.y += d.av.y * dt; m.rotation.z += d.av.z * dt;
-      if (d.life < 0.6) { const s = d.s0 * d.life / 0.6; m.scale.setScalar(Math.max(0.001, s)); }
+      const sk = (1 + (d.grow - 1) * Math.min(1, (d.max - d.life) / 0.3)) * (d.life < 0.6 ? Math.max(0.001, d.life / 0.6) : 1);
+      if (d.grow !== 1 || d.life < 0.6) m.scale.set(d.s0.x * sk, d.s0.y * sk, d.s0.z * sk);
+      if (d.burn && d.life > d.max - 2.4) { const f = 0.7 + 0.3 * Math.sin(this.t * 40 + i); add.push(m.position.x, m.position.y + 0.1, m.position.z, 0, 0, 0, 0.5 * f, 0, 11, 0, 6, 2.4, 0.5, Math.min(1, (d.life - d.max + 2.4))); }
       if (d.smoke && d.life > d.max - 1.5 && Math.random() < dt * 14) this.emit({ x: m.position.x, y: m.position.y, z: m.position.z, vy: 0.6, life: 0.8, s0: 0.12, s1: 0.5, r: 0.04, g: 0.04, b: 0.045, a: 0.55, add: false, frame: 1, rv: rand(-1, 1), fadeIn: 0.1 });
     }
     add.flush(); alp.flush();

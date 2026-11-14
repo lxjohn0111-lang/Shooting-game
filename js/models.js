@@ -197,6 +197,7 @@ export function buildWeapon(id, mat) {
     muzzle = new THREE.Vector3(0, 0.012, -0.76); hip.set(0.2, -0.2, -0.4); lh = [0, -0.09, -0.24, { left: true, rx: 0.3, ry: -0.6, rz: 1.2 }];
   }
   mk(body, 'body'); if (mag.geos.length) mk(mag, 'mag'); if (bolt.geos.length) mk(bolt, 'bolt');
+  if (id === 'shotgun') { const sh = new Builder(); sh.cyl(0.0098, 0.0098, 0.046, 0, 0.012, -0.315, C.red, { axis: 'z', seg: 10, ...POLY, rough: 0.8 }); sh.cyl(0.0104, 0.0104, 0.015, 0, 0.012, -0.286, C.brass, { axis: 'z', seg: 10, metal: 1, rough: 0.5 }); mk(sh, 'shell').visible = false; }
   const mkHand = (spec, name) => { const m = new THREE.Mesh(hand(null, spec[0], spec[1], spec[2], spec[3]), mat); m.frustumCulled = false; m.receiveShadow = true; parts[name] = m; group.add(m); };
   mkHand(rh, 'rhand'); mkHand(lh, 'lhand');
   return { group, parts, muzzle, sight, eject, hip };

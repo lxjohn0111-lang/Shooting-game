@@ -37,7 +37,7 @@ export class Player {
     this.swapT = 0; this.swapTo = -1; this.reloadT = -1; this.fireCd = 0; this.bloom = 0; this.adsT = 0; this.sprintT = 0; this.charge = -1;
     this.recoil = { p: 0, y: 0, vp: 0, vy: 0 }; this.kick = { z: 0, r: 0, roll: 0 }; this.sway = { x: 0, y: 0 }; this.bob = 0; this.bobAmp = 0; this.landDip = 0; this.roll = 0;
     this.shake = 0; this.crouchT = 0; this.slideT = 0; this.slideDir = { x: 0, z: 0 }; this.coyote = 0; this.meleeT = -1; this.throwT = -1; this.boltT = 1; this.pumpT = 1; this.stepPh = 0; this.hurtT = 0; this.equipT = 0.4;
-    this.moving = 0; this.airT = 0;
+    this.moving = 0; this.airT = 0; this.deathT = 0; this.deathSide = 1; this.deathEye = 1.65; this.deathPitch = 0; this.deathThud = false; this.reloadEmpty = false; this.slideK = 0; this.roll = 0;
     this._equip(this.cur, true);
   }
 
@@ -59,7 +59,7 @@ export class Player {
   }
   switchTo(i) {
     if (i === this.cur || i < 0 || i >= this.inv.length || this.swapTo === i) return;
-    this.swapTo = i; this.swapT = 0.16; this.reloadT = -1; this.charge = -1; this.last = this.cur;
+    this.swapTo = i; this.swapT = 0.16; this.reloadT = -1; this.reloadDone = 0; this.charge = -1; this.last = this.cur;
     this.game.audio.play('swap', { vol: 0.5, reverb: 0.1 });
   }
   addWeapon(id) { if (this.inv.find(w => w.id === id)) return; const st = this.stat(id); this.inv.push({ id, ammo: st.mag, reserve: st.reserve }); this.inv.sort((a, b) => WEAPONS[a.id].slot - WEAPONS[b.id].slot); }
@@ -83,7 +83,11 @@ export class Player {
       g.stats.damageTaken += amount;
     }
     if (from) g.ui.damageDir(from, this);
-    if (this.health <= 0) { this.health = 0; this.dead = true; g.onPlayerDeath(); }
+    if (this.health <= 0) {
+      this.health = 0; this.dead = true; this.deathT = 0; this.deathEye = this.eye; this.deathPitch = this.pitch; this.deathThud = false; this.reloadT = -1; this.charge = -1;
+      this.deathSide = from ? (Math.sin(this.yaw) * (from.z - this.body.z) - Math.cos(this.yaw) * (from.x - this.body.x) > 0 ? 1 : -1) : (Math.random() < 0.5 ? -1 : 1);
+      g.onPlayerDeath();
+    }
   }
   heal(n) { this.health = Math.min(this.maxHealth, this.health + n); }
   addFocus(n) { if (!this.focusOn) this.focus = Math.min(1, this.focus + n * (1 + 0.2 * (this.game.save.data.perks.focus || 0))); }
@@ -91,7 +95,7 @@ export class Player {
   // ---------- firing ----------
   _fire() {
     const g = this.game, w = this.weapon, def = this.wdef, st = this.stat(w.id), m = this.model, cam = this.cam;
-    w.ammo--; this.fireCd = 60 / def.rpm; this.reloadT = -1;
+    w.ammo--; this.fireCd = 60 / def.rpm; this.reloadT = -1; this.reloadDone = 0;
     cam.getWorldPosition(_v); cam.getWorldDirection(_v2);
     const ox = _v.x, oy = _v.y, oz = _v.z;
     const moveK = clamp(Math.hypot(this.body.vx, this.body.vz) / 6, 0, 1), air = this.body.onGround ? 0 : 1;
@@ -156,7 +160,22 @@ export class Player {
   startReload() {
     const w = this.weapon, st = this.stat(w.id);
     if (this.reloadT >= 0 || w.ammo >= st.mag || w.reserve <= 0 || this.swapTo >= 0 || this.meleeT >= 0) return;
-    this.reloadT = 0; this.reloadStage = 0; this.charge = -1;
+    this.reloadT = 0; this.reloadStage = 0; this.charge = -1; this.reloadEmpty = w.ammo === 0;
+  }
+  _reloadDur(st, def) { return st.reload * (this.reloadEmpty || this.weapon.id === 'launcher' ? 1 : 0.86); }
+  // the spent magazine / power cell is physically thrown out of the weapon
+  _dropMag() {
+    const P = this.model.parts, g = this.game, b = this.body; if (!P.mag || !P.mag.visible) return;
+    const mesh = new THREE.Mesh(P.mag.geometry, g.M.weapon); mesh.castShadow = true;
+    mesh.position.copy(P.mag.position); mesh.rotation.copy(P.mag.rotation); P.mag.parent.add(mesh);
+    _v.setFromMatrixColumn(this.cam.matrixWorld, 0).multiplyScalar(this.weapon.id === 'rail' ? -1.6 : -0.5);
+    g.fx.addDebris(mesh, new THREE.Vector3(_v.x + b.vx, -0.4, _v.z + b.vz), 5, false, { floor: b.groundY, grow: 3.3, rad: 0.05, av: 5, sound: 'grenade_bounce' });
+  }
+  // small close-to-camera effects for the scaled view-model
+  _vmFx(local, kind) {
+    const g = this.game, fx = g.fx, m = this.model, w = m.group.localToWorld(_v3.copy(local));
+    if (kind === 'steam') { for (let i = 0; i < 5; i++) fx.emit({ x: w.x, y: w.y, z: w.z, vx: rand(-0.12, 0.12), vy: rand(0.1, 0.3), vz: rand(-0.12, 0.12), life: rand(0.5, 0.9), s0: 0.015, s1: 0.11, r: 0.55, g: 0.75, b: 0.9, a: 0.3, add: false, frame: [1, 2, 13][i % 3], rv: rand(-2, 2), drag: 2, fadeIn: 0.05 }); }
+    else { for (let i = 0; i < 7; i++) fx.emit({ x: w.x, y: w.y, z: w.z, vx: rand(-0.7, 0.7), vy: rand(-0.2, 0.9), vz: rand(-0.7, 0.7), life: rand(0.12, 0.3), s0: 0.004, s1: 0.001, r: 3, g: 7, b: 10, grav: 3, frame: 3, stretch: 0.03 }); fx.glow(w.x, w.y, w.z, 0.09, [0.3, 0.8, 1], 0.1, 0, 6); g.gfx.flash(w, new THREE.Color(0.3, 0.7, 1), 3, 0.15, 6); }
   }
 
   _melee() {
@@ -175,7 +194,17 @@ export class Player {
   // ---------- update ----------
   update(dt, input) {
     const g = this.game, b = this.body, cam = this.cam, def = this.wdef, w = this.weapon;
-    if (this.dead) { this.eye = damp(this.eye, 0.35, 4, dt); this.roll = damp(this.roll, 0.9, 3, dt); this._applyCam(dt); return; }
+    if (this.dead) { // collapse: knees give way, topple sideways, weapon falls from the hands
+      const T = (this.deathT += g.realDt), k1 = smoothstep(0, 0.34, T), k2 = smoothstep(0.26, 0.9, T), kk = k2 * k2;
+      this.eye = lerp(lerp(this.deathEye, 1.0, k1), 0.2, kk) + (k2 >= 1 ? Math.sin(Math.min(1, (T - 0.9) / 0.28) * Math.PI) * 0.06 : 0);
+      this.roll = this.deathSide * (0.1 * k1 + 1.25 * kk); this.pitch = lerp(lerp(this.deathPitch, -0.3, k1), 0.38, kk); this.yaw += this.deathSide * g.realDt * 0.35 * (1 - k2);
+      if (k2 >= 1 && !this.deathThud) { this.deathThud = true; this.shake = 0.9; g.audio.play('land', { vol: 1, reverb: 0.3 }); g.audio.play('melee_hit', { vol: 0.6, rate: 0.7 }); }
+      b.vx = damp(b.vx, 0, 6, dt); b.vz = damp(b.vz, 0, 6, dt); g.level.moveBody(b, dt);
+      this.shake = Math.max(0, this.shake - g.realDt * 2.2); this.landDip = 0; this.bobAmp = 0; this.recoil.p = this.recoil.y = 0;
+      this._applyCam(dt);
+      const m = this.model, h = this.holder; h.position.set(m.hip.x + 0.02 + T * 0.12, m.hip.y - 0.02 - T * T * 1.5, m.hip.z - 0.11 + T * 0.1); h.rotation.set(-T * 2.4, T * 0.9, T * 3.4, 'YXZ');
+      return;
+    }
     // look
     const zoomK = lerp(1, def.scope ? 0.3 : 0.75, this.adsT);
     const sens = 0.0022 * input.sens * zoomK;
@@ -266,7 +295,7 @@ export class Player {
     if (w.id === 'shotgun' && this.pumpT > 0.25 && this.pumpT - dt * 2.6 <= 0.25 && this.reloadT < 0) { g.audio.play('pump', { vol: 0.6, reverb: 0.2 }); const m = this.model; const ej = m.group.localToWorld(_v3.copy(m.eject)); _v.setFromMatrixColumn(cam.matrixWorld, 0).multiplyScalar(2).setY(1.8); g.fx.casing(ej, _v.clone(), 2.2); }
     this.shake = Math.max(0, this.shake - dt * 2.2); this.landDip = damp(this.landDip, 0, 9, dt);
     this.sway.x = damp(this.sway.x, clamp(-input.dx * 0.0009, -0.05, 0.05), 10, dt); this.sway.y = damp(this.sway.y, clamp(-input.dy * 0.0009, -0.05, 0.05), 10, dt);
-    this.roll = damp(this.roll, -ix * 0.022 * Math.min(1, hs / 5) + (this.slideT > 0 ? 0.06 : 0), 8, dt);
+    this.roll = damp(this.roll, -ix * 0.022 * Math.min(1, hs / 5) + (this.slideT > 0 ? 0.06 : 0) + (this.meleeT >= 0 ? Math.sin(this.meleeT / 0.42 * Math.PI) * -0.06 : 0), 10, dt); this.slideK = damp(this.slideK, this.slideT > 0 ? 1 : 0, 12, dt);
     this.eye = damp(this.eye, lerp(1.65, 1.0, this.crouchT) - (this.slideT > 0 ? 0.2 : 0), 14, dt);
     this.fov = damp(this.fov, this.baseFov * lerp(1, def.adsFov, this.adsT) * (1 + this.sprintT * 0.07) * (1 + this.focusK * 0.06) * (this.charge >= 0 ? 1 - this.charge * 0.12 : 1), 14, dt);
     this._applyCam(dt);
@@ -276,20 +305,31 @@ export class Player {
   _dry() { this.fireCd = 0.25; this.game.audio.play('dry', { vol: 0.5, reverb: 0 }); if (this.weapon.reserve > 0) this.startReload(); else this.game.ui.toast('NO AMMO', 'warn', 0.9); }
 
   _updateReload(dt) {
-    const g = this.game, w = this.weapon, def = this.wdef, st = this.stat(w.id);
+    const g = this.game, w = this.weapon, def = this.wdef, st = this.stat(w.id), au = g.audio, m = this.model;
     if (def.shellReload) {
-      const per = st.reload; this.reloadT += dt;
-      const lead = 0.35;
-      if (this.reloadT > lead + per * (this.reloadStage + 1)) {
-        this.reloadStage++; w.ammo++; w.reserve--; g.audio.play('shell_in', { vol: 0.6, reverb: 0.15 }); g.ui.hudAmmo(this);
-        if (w.ammo >= st.mag || w.reserve <= 0) { this.reloadT = -1; this.pumpT = 0; this.fireCd = 0.4; }
+      const per = st.reload, lead = 0.4; this.reloadT += dt;
+      if (this.reloadT > lead + per * (this.reloadStage + 0.55)) {
+        this.reloadStage++; w.ammo++; w.reserve--; au.play('shell_in', { vol: 0.65, reverb: 0.15 }); g.ui.hudAmmo(this);
+        if (w.ammo >= st.mag || w.reserve <= 0) this.reloadDone = this.reloadT + per * 0.45;
       }
+      if (this.reloadDone && this.reloadT >= this.reloadDone) { this.reloadDone = 0; this.reloadT = -1; this.pumpT = 0; this.fireCd = 0.45; }
       return;
     }
-    const prev = this.reloadT / st.reload; this.reloadT += dt; const t = this.reloadT / st.reload;
-    if (prev < 0.18 && t >= 0.18) g.audio.play('reload_out', { vol: 0.65, reverb: 0.15 });
-    if (prev < 0.62 && t >= 0.62) g.audio.play('reload_in', { vol: 0.7, reverb: 0.15 });
-    if (prev < 0.84 && t >= 0.84) { g.audio.play('bolt', { vol: 0.6, reverb: 0.15 }); const need = st.mag - w.ammo, take = Math.min(need, w.reserve); w.ammo += take; if (w.reserve !== Infinity) w.reserve -= take; g.ui.hudAmmo(this); this.boltT = 0; }
+    const dur = this._reloadDur(st, def), prev = this.reloadT / dur; this.reloadT += dt; const t = this.reloadT / dur, at = (x) => prev < x && t >= x;
+    const refill = () => { const take = Math.min(st.mag - w.ammo, w.reserve); w.ammo += take; if (w.reserve !== Infinity) w.reserve -= take; g.ui.hudAmmo(this); };
+    if (w.id === 'launcher') {
+      if (at(0.13)) au.play('reload_out', { vol: 0.65, reverb: 0.15 });
+      if (at(0.24)) { const p0 = m.group.localToWorld(_v3.set(-0.1, 0.0, -0.1)); for (let i = 0; i < 3; i++) g.fx.casing(p0, new THREE.Vector3(rand(-0.5, 0.5) + this.body.vx, rand(-0.5, 0.2), rand(-0.5, 0.5) + this.body.vz), 2.6); }
+      for (let k = 0; k < 6; k++) if (at(0.41 + k * 0.06)) au.play('shell_in', { vol: 0.5, rate: 0.85 + k * 0.03, reverb: 0.1 });
+      if (at(0.83)) { au.play('reload_in', { vol: 0.75, reverb: 0.15 }); refill(); }
+    } else {
+      if (at(0.14)) au.play('reload_out', { vol: 0.65, reverb: 0.15 });
+      if (at(0.25)) this._dropMag();
+      if (w.id === 'rail') { if (at(0.2)) { this._vmFx(_v2.set(0, -0.04, -0.02), 'steam'); au.play('shield_break', { vol: 0.3, rate: 1.8, reverb: 0.1 }); } if (at(0.64)) this._vmFx(_v2.set(0, -0.05, -0.02), 'arc'); if (at(0.76)) au.play('rail_charge', { vol: 0.3, rate: 1.6, reverb: 0.1 }); }
+      if (at(0.63)) { au.play('reload_in', { vol: 0.7, reverb: 0.15 }); refill(); }
+      if (at(0.71)) au.play('dry', { vol: 0.3, rate: 0.65, reverb: 0.05 });
+      if (this.reloadEmpty && at(0.83)) { au.play('bolt', { vol: 0.65, reverb: 0.15 }); }
+    }
     if (t >= 1) this.reloadT = -1;
   }
 
@@ -304,7 +344,7 @@ export class Player {
   }
 
   _viewModel(dt, t) {
-    const m = this.model, h = this.holder, def = this.wdef, w = this.weapon, st = this.stat(w.id);
+    const m = this.model, h = this.holder, def = this.wdef, w = this.weapon, st = this.stat(w.id), P = m.parts;
     const D = w.id === 'pistol' ? 0.36 : def.scope ? 0.16 : 0.25;
     const a = this.adsT, sp = this.sprintT * (1 - a);
     let px = lerp(m.hip.x + 0.015, -m.sight.x, a), py = lerp(m.hip.y - 0.02, -m.sight.y, a), pz = lerp(m.hip.z - 0.11, -D - m.sight.z * 0.62, a);
@@ -316,42 +356,76 @@ export class Player {
     const sw = 1 - a * 0.7; ry += this.sway.x * 1.4 * sw; rx += this.sway.y * 1.2 * sw; px += this.sway.x * 0.25 * sw; py -= this.sway.y * 0.2 * sw; rz += this.sway.x * 0.9 * sw;
     py += clamp(-this.body.vy * 0.004, -0.03, 0.03) * (1 - a * 0.6) - this.landDip * 0.25;
     rz += this.roll * -1.5;
-    // sprint pose
+    // sprint: weapon carried across the body, pumping with each stride
     px -= 0.05 * sp; py -= 0.035 * sp; pz += 0.03 * sp; ry += 0.62 * sp; rx -= 0.22 * sp; rz += 0.18 * sp;
+    px += Math.cos(this.bob) * 0.022 * sp; py += Math.sin(this.bob * 2) * 0.016 * sp; rz += Math.cos(this.bob) * 0.08 * sp; rx += Math.sin(this.bob * 2) * 0.05 * sp;
+    // slide: weapon canted
+    const sl = this.slideK * (1 - a * 0.6); px -= 0.04 * sl; py -= 0.02 * sl; rz += 0.42 * sl; rx += 0.07 * sl;
     // recoil
     pz += this.kick.z * (1 - a * 0.35); rx += this.kick.r * (1 - a * 0.5); rz += this.kick.roll; py += this.kick.r * 0.03;
-    // equip / swap
-    const lower = this.swapTo >= 0 ? 1 - this.swapT / 0.16 : this.equipT / 0.28;
-    if (lower > 0) { const k = lower * lower; py -= 0.22 * k; rx -= 0.7 * k; rz += 0.25 * k; }
-    // reload
-    const P = m.parts; let magOff = 0, magRot = 0, lhx = 0, lhy = 0, lhz = 0;
+    // holster / draw with a settle overshoot
+    if (this.swapTo >= 0) { const k = (1 - this.swapT / 0.16) ** 2; py -= 0.24 * k; rx -= 0.8 * k; rz += 0.3 * k; ry += 0.2 * k; }
+    else if (this.equipT > 0) { const lw = this.equipT / 0.28, k = lw * lw, o = Math.sin((1 - lw) * Math.PI); py -= 0.26 * k; rx -= 0.95 * k - 0.08 * o; rz += 0.55 * k - 0.12 * o; ry += 0.3 * k; pz += 0.05 * o; }
+    // ---- reload choreography ----
+    let magX = 0, magY = 0, magZ = 0, magRot = 0, magVis = true, lhx = 0, lhy = 0, lhz = 0, boltZ = -1, cylSpin = 0, shellVis = false, glow = 1;
     if (this.reloadT >= 0) {
       if (def.shellReload) {
-        const k = smoothstep(0, 0.3, this.reloadT); const cyc = ((this.reloadT - 0.35) / st.reload) % 1, ins = this.reloadT > 0.35 ? Math.sin(cyc * Math.PI) : 0;
-        rx += 0.32 * k; rz += 0.5 * k; py -= 0.03 * k; px -= 0.05 * k; lhy = -0.05 * k + 0.03 * ins; lhz = 0.24 * k - 0.05 * ins; lhx = 0.02 * k;
+        // roll the gun over, feed shells one at a time from below, then rack the pump
+        const lead = 0.4, per = st.reload, k = smoothstep(0, 0.32, this.reloadT), on = this.reloadT > lead, cyc = on ? ((this.reloadT - lead) / per) % 1 : 0;
+        rx += 0.3 * k; rz += 0.64 * k; ry += 0.1 * k; py -= 0.02 * k; px -= 0.06 * k;
+        const reach = on ? Math.sin(Math.min(1, cyc / 0.5) * Math.PI / 2) : 0, ret = on ? smoothstep(0.62, 1, cyc) : 0, push = on ? Math.sin(clamp((cyc - 0.42) / 0.2, 0, 1) * Math.PI) : 0;
+        lhx = 0.02 * k; lhy = -0.27 * k * (1 - reach * (1 - ret)); lhz = 0.27 * k - 0.055 * push;
+        pz -= 0.009 * push; py += 0.005 * push; rz -= 0.03 * push; shellVis = on && cyc < 0.55 && !this.reloadDone;
       } else {
-        const tt = this.reloadT / st.reload;
-        const tilt = smoothstep(0, 0.15, tt) * (1 - smoothstep(0.86, 1, tt));
-        rz += 0.42 * tilt; rx += 0.2 * tilt; py -= 0.035 * tilt; px -= 0.02 * tilt; ry += 0.12 * tilt;
-        const out = smoothstep(0.16, 0.32, tt) * (1 - smoothstep(0.5, 0.64, tt));
-        magOff = out; magRot = out * 0.5;
-        const ms = (m.magHome ? 1 : 0); lhy = -0.16 * out * ms - 0.05 * tilt; lhz = 0.18 * tilt; lhx = 0.01 * tilt;
-        if (tt > 0.78) { const rk = Math.sin(smoothstep(0.78, 0.94, tt) * Math.PI); lhz = lerp(lhz, 0.3, rk); lhy = lerp(lhy, 0.05, rk); lhx = 0.03 * rk; }
-        py -= Math.sin(smoothstep(0.58, 0.68, tt) * Math.PI) * 0.012;
+        const tt = clamp(this.reloadT / this._reloadDur(st, def), 0, 1), E = this.reloadEmpty;
+        const bump = (t0, wd) => Math.sin(clamp((tt - t0) / wd, 0, 1) * Math.PI);
+        if (w.id === 'launcher') {
+          // break open, dump the spent casings with a spin, thumb in six rounds, flick shut
+          const tilt = smoothstep(0, 0.12, tt) * (1 - smoothstep(0.88, 1, tt));
+          rz += 0.72 * tilt; rx += 0.4 * tilt; ry += 0.15 * tilt; px -= 0.06 * tilt; py += 0.02 * tilt;
+          const open = smoothstep(0.12, 0.2, tt) * (1 - smoothstep(0.8, 0.86, tt)); magX = -0.1 * open; magY = -0.015 * open;
+          const idx = clamp((tt - 0.4) / 0.06, 0, 6), step = Math.floor(idx) + smoothstep(0, 0.45, idx % 1);
+          cylSpin = smoothstep(0.2, 0.38, tt) * 15.7 + step * (TAU / 6);
+          const loading = tt > 0.39 && tt < 0.77, load = loading ? Math.sin((idx % 1) * Math.PI) : 0, toCyl = smoothstep(0.1, 0.2, tt) * (1 - smoothstep(0.78, 0.86, tt));
+          lhx = -0.07 * toCyl; lhy = 0.06 * toCyl - (loading ? 0.13 * (1 - load) : 0); lhz = 0.17 * toCyl - 0.04 * load;
+          py += 0.006 * load; rz += 0.02 * load; const close = bump(0.82, 0.09); rz -= 0.34 * close; px += 0.025 * close; py += 0.014 * close; rx -= 0.1 * close;
+        } else {
+          // cant the weapon, strip the magazine (it drops free), seat a fresh one, tap it home, then rack the action
+          const tilt = smoothstep(0, 0.13, tt) * (1 - smoothstep(0.88, 1, tt));
+          rz += 0.56 * tilt; rx += 0.27 * tilt; ry += 0.2 * tilt; px -= 0.05 * tilt; py += 0.014 * tilt; pz += 0.03 * tilt;
+          py -= 0.011 * bump(0.13, 0.06);
+          const out = smoothstep(0.16, 0.26, tt), back = smoothstep(0.5, 0.63, tt), rail = w.id === 'rail', pistol = w.id === 'pistol';
+          if (tt < 0.25) { magY = -0.2 * out; magZ = 0.04 * out; magRot = 0.5 * out; }
+          else if (tt < 0.5) magVis = false;
+          else { const k = 1 - back; magY = -0.3 * k; magZ = 0.03 * k; magRot = 0.45 * k; }
+          if (rail) { magX = magY * 0.7; magY *= 0.35; magRot = 0; glow = tt < 0.2 ? 1 : tt < 0.63 ? 0.06 : 1 + 5 * (1 - smoothstep(0.63, 0.9, tt)) + (E ? 0 : 0); px += Math.sin(t * 95) * 0.0016 * smoothstep(0.74, 0.8, tt) * (1 - smoothstep(0.9, 0.96, tt)); }
+          const toMag = smoothstep(0.04, 0.16, tt) * (1 - smoothstep(0.7, 0.8, tt)), down = out * (1 - back), tm = pistol ? 0.15 : 1;
+          lhy = -0.1 * toMag * tm - 0.3 * down; lhz = 0.2 * toMag * tm + 0.05 * down; lhx = rail ? -0.05 * down : 0;
+          const seat = bump(0.63, 0.06), tap = bump(0.71, 0.05);
+          py += 0.017 * seat + 0.009 * tap; rx += 0.055 * seat + 0.02 * tap; rz += 0.03 * seat; lhy += 0.025 * tap;
+          if (E && pistol) { boltZ = tt < 0.86 ? 0.035 : 0; const rel = bump(0.86, 0.08); rx -= 0.08 * rel; pz += 0.013 * rel; rz -= 0.12 * bump(0.76, 0.2); }
+          else if (E && P.bolt) {
+            const ch = smoothstep(0.74, 0.82, tt) * (1 - smoothstep(0.93, 0.99, tt)), pull = tt < 0.9 ? smoothstep(0.82, 0.87, tt) : 0, snap = bump(0.9, 0.06);
+            lhx += 0.03 * ch; lhy += 0.07 * ch; lhz += 0.3 * ch + 0.05 * pull; boltZ = 0.05 * pull;
+            rz -= 0.44 * ch; rx += 0.06 * ch; ry -= 0.12 * ch; pz += 0.02 * pull - 0.016 * snap; py -= 0.006 * snap;
+          } else { const fl = bump(0.72, 0.2); rz -= 0.24 * fl; rx += 0.05 * fl; ry -= 0.06 * fl; }
+        }
       }
     }
-    if (P.mag && m.magHome) { P.mag.position.set(m.magHome.x - magOff * 0.04, m.magHome.y - magOff * 0.3, m.magHome.z + magOff * 0.06); P.mag.rotation.x = magRot; P.mag.visible = !(magOff > 0.97); if (w.id === 'launcher') { P.mag.rotation.x = 0; P.mag.position.x = m.magHome.x - magOff * 0.1; P.mag.position.y = m.magHome.y; } }
+    if (P.mag && m.magHome) { P.mag.position.set(m.magHome.x + magX, m.magHome.y + magY, m.magHome.z + magZ); P.mag.rotation.x = magRot; P.mag.visible = magVis; }
     // melee: quick butt strike
-    if (this.meleeT >= 0) { const k = Math.sin(clamp(this.meleeT / 0.42, 0, 1) * Math.PI), k2 = Math.sin(clamp(this.meleeT / 0.2, 0, 1) * Math.PI); pz -= 0.2 * k2; px -= 0.14 * k; ry += 1.1 * k; rz -= 0.5 * k; rx += 0.25 * k; }
+    if (this.meleeT >= 0) { const k = Math.sin(clamp(this.meleeT / 0.42, 0, 1) * Math.PI), k2 = Math.sin(clamp(this.meleeT / 0.2, 0, 1) * Math.PI); pz -= 0.22 * k2; px -= 0.14 * k; ry += 1.15 * k; rz -= 0.55 * k; rx += 0.25 * k; py += 0.03 * k2; }
     if (this.throwT >= 0) { const k = Math.sin(clamp(this.throwT / 0.5, 0, 1) * Math.PI); py -= 0.1 * k; rz += 0.35 * k; px += 0.03 * k; lhz = -0.25 * Math.sin(clamp((this.throwT - 0.1) / 0.3, 0, 1) * Math.PI); lhy = 0.12 * k; lhx = -0.1 * k; }
     // bolt / slide / pump
     if (P.bolt) {
-      if (w.id === 'shotgun') { const k = Math.sin(clamp(this.pumpT, 0, 1) * Math.PI); const rel = this.reloadT >= 0 ? 0 : k; P.bolt.position.z = 0.1 * rel; if (this.reloadT < 0) lhz += 0.1 * rel; }
+      if (w.id === 'shotgun') { const k = Math.sin(clamp(this.pumpT, 0, 1) * Math.PI); const rel = this.reloadT >= 0 ? 0 : k; P.bolt.position.z = 0.1 * rel; if (this.reloadT < 0) { lhz += 0.1 * rel; rx += 0.05 * rel; pz += 0.012 * rel; } }
+      else if (boltZ >= 0) P.bolt.position.z = boltZ;
       else { const k = 1 - this.boltT, empty = w.ammo === 0 && w.id === 'pistol' && this.reloadT < 0 ? 1 : 0; P.bolt.position.z = Math.max(k, empty) * (w.id === 'pistol' ? 0.035 : 0.045); }
     }
     if (P.lhand) P.lhand.position.set(lhx, lhy, lhz);
-    if (w.id === 'launcher' && P.mag) P.mag.rotation.z = (st.mag - w.ammo) * (TAU / 6) + (1 - this.boltT) * -1.0;
-    if (def.energy) this.game.M.weapon.userData.emiBoost.value = 0.7 + (this.charge >= 0 ? this.charge / def.charge * 5 : 0) + Math.sin(t * 6) * 0.1;
+    if (P.shell) { P.shell.visible = shellVis; P.shell.position.set(lhx, lhy, lhz); }
+    if (w.id === 'launcher' && P.mag) P.mag.rotation.z = (st.mag - w.ammo) * (TAU / 6) + (1 - this.boltT) * -1.0 + cylSpin;
+    if (def.energy) this.game.M.weapon.userData.emiBoost.value = (0.7 + (this.charge >= 0 ? this.charge / def.charge * 5 : 0) + Math.sin(t * 6) * 0.1) * glow;
     else this.game.M.weapon.userData.emiBoost.value = 1;
     h.position.set(px, py, pz); h.rotation.set(rx, ry, rz, 'YXZ');
     const scoped = def.scope && a > 0.85;
