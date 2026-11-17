@@ -10,6 +10,7 @@ Everything the CrazyGames developer portal asks for, ready to upload.
 | `covers/cover-portrait-800x1200.png` | Portrait cover, 2:3 | Covers → Portrait |
 | `covers/cover-square-800x800.png` | Square cover, 1:1 | Covers → Square |
 | `video/preview-1920x1080.mp4` | 15-second gameplay preview (campaign firefight, Domination, boss), 1920×1080, 30 fps, H.264, no audio, 16 MB | Preview video |
+| `video/preview-1080x1620.mp4` | The same 15 seconds cropped to portrait 2:3 (centre of the frame, scaled up from 720×1080), 30 fps, H.264, no audio, 11 MB | Portrait preview video |
 
 The covers follow the CrazyGames cover rules: no borders, and the game title is the only text on them.
 
