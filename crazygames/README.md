@@ -4,8 +4,8 @@ Everything the CrazyGames developer portal asks for, ready to upload.
 
 | File | What it is | Where it goes in the portal |
 | --- | --- | --- |
-| `vanta-protocol-crazygames.zip` | The game build (HTML5). `index.html` is at the root of the zip. 352 KB, 27 files. | Game files / build upload |
-| `game/` | The same build, unzipped, for testing locally before you upload | — |
+| `vanta-protocol-crazygames.zip` | The game build (HTML5): a single self-contained `index.html` at the root of the zip, 275 KB zipped | Game files / build upload |
+| `game/index.html` | The same file, unzipped (964 KB). It contains all the CSS and JavaScript, so it needs no other files | — |
 | `covers/cover-landscape-1920x1080.png` | Landscape cover, 16:9 | Covers → Landscape |
 | `covers/cover-portrait-800x1200.png` | Portrait cover, 2:3 | Covers → Portrait |
 | `covers/cover-square-800x800.png` | Square cover, 1:1 | Covers → Square |
@@ -13,12 +13,17 @@ Everything the CrazyGames developer portal asks for, ready to upload.
 
 The covers follow the CrazyGames cover rules: no borders, and the game title is the only text on them.
 
-To rebuild the zip after changing the game, run `./tools/build-crazygames.sh` from the repository root. It refreshes `game/` and the zip; covers and the video are left alone.
+To rebuild after changing the game: `cd tools && npm install && npm run build:crazygames`. It bundles all JavaScript with esbuild, inlines it and the stylesheet into `game/index.html`, and zips it. Covers and the video are left alone.
+
+### Why a single file
+
+An earlier build kept the stylesheet and scripts in `css/` and `js/` next to `index.html`. On CrazyGames that build showed an unstyled page with every menu stacked on top of each other: `index.html` loaded, but the files it points to did not (folder structure lost on upload, or the files served with a type the browser refuses for stylesheets and JavaScript modules). The single-file build has nothing to lose: if `index.html` loads, the whole game loads.
 
 ## Before you upload
 
 1. **Test the build locally.** From the repository root, run `PORT=8765 STATIC=.. node server/relay.js` (after `cd server && npm install`), then open `http://localhost:8765/crazygames/game/index.html`. The CrazyGames SDK only fully works inside the portal's preview, so locally the game runs with its offline fallbacks.
-2. **Decide about multiplayer.** The build ships with `MP_SERVER_URL` empty in `js/config.js`. Without a relay server, the Multiplayer menu still works, but every match is you against AI, and the screen says so ("OFFLINE · NO MULTIPLAYER SERVER"). For real online matches on CrazyGames, deploy `server/relay.js` (see the main README, "Deploying the relay"), set `MP_SERVER_URL` to its `wss://` address, and run the build script again. Only tag the game as multiplayer on CrazyGames once the relay is live.
+   If you re-upload over an older build, upload the new zip as a fresh build so the old `css/` and `js/` files are not mixed in.
+2. **Decide about multiplayer.** The build ships with `MP_SERVER_URL` empty in `js/config.js`. Without a relay server, the Multiplayer menu still works, but every match is you against AI, and the screen says so ("OFFLINE · NO MULTIPLAYER SERVER"). For real online matches on CrazyGames, deploy `server/relay.js` (see the main README, "Deploying the relay"), set `MP_SERVER_URL` to its `wss://` address, and rebuild. Only tag the game as multiplayer on CrazyGames once the relay is live.
 3. **Use the portal's preview / QA tool** after uploading and check that the SDK events below fire.
 
 ## Progress saving (CrazyGames Data module)

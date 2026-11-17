@@ -1,0 +1,8 @@
+{
+  "name": "vanta-protocol-tools",
+  "private": true,
+  "type": "module",
+  "description": "Build tooling for the CrazyGames package",
+  "scripts": { "build:crazygames": "node build-crazygames.mjs" },
+  "devDependencies": { "esbuild": "0.28.2" }
+}

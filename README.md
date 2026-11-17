@@ -95,7 +95,7 @@ For local testing the relay can also serve the game: `PORT=8765 STATIC=.. node s
 Everything the portal needs is in [`crazygames/`](crazygames/README.md): the upload zip, the three covers, the preview video and the store listing text.
 
 1. Deploy the multiplayer relay and set `MP_SERVER_URL` (see above), or ship without it and multiplayer runs against AI.
-2. Rebuild the zip with `./tools/build-crazygames.sh`.
+2. Rebuild the zip with `cd tools && npm install && npm run build:crazygames` (one self-contained `index.html`).
 3. Upload the zip in the [CrazyGames Developer Portal](https://developer.crazygames.com) as an HTML5 game.
 4. Use the portal's QA tool to verify the SDK events below.
 
