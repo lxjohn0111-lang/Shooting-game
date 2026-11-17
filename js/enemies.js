@@ -21,7 +21,7 @@ function legGeo(len, w, col, foot = false) { // segment hanging down from pivot
   return b.build();
 }
 
-function geos(type) {
+export function geos(type) {
   if (GEO[type]) return GEO[type];
   const g = {}; let b;
   if (type === 'trooper' || type === 'trooperE') {
@@ -166,7 +166,7 @@ function geos(type) {
 let rotorMat = null, shieldMat = null;
 const SMOKE = [0.045, 0.045, 0.05];
 
-class Enemy {
+export class Enemy {
   constructor(sys, type, x, z, opts = {}) {
     const game = sys.game, def = ENEMIES[type], diff = game.diff;
     this.sys = sys; this.game = game; this.type = type; this.def = def; this.elite = !!opts.elite;
@@ -179,6 +179,7 @@ class Enemy {
     this.group = new THREE.Group(); this.group.rotation.order = 'YXZ';
     this.mat = sys.makeMat(); this.meshes = [];
     this.build(geos(this.elite && type === 'trooper' ? 'trooperE' : type));
+    if (opts.noDrop) { this.dropIn = false; this.spawnDur = this.spawnT = 0.35; }
     if (this.dropIn) { this.spawnDur = this.spawnT = type === 'heavy' ? 1.3 : 0.95; this.landed = false; }
     this.group.position.copy(this.pos); if (this.dropIn) this.group.position.y += 16; this.group.rotation.y = this.yaw; game.gfx.scene.add(this.group);
   }
@@ -278,7 +279,7 @@ class Enemy {
     const style = this.deathStyle(o);
     if (style === 'burst') this.breakApart(1);
     else { this.dying = true; this.deathT = 0; this.style = style; if (this.startDeath) this.startDeath(style); }
-    g.onEnemyKilled(this, o);
+    if (!this.netAvatar) g.onEnemyKilled(this, o);
   }
   centerWorld(out) { if (this.torso) { this.torso.getWorldPosition(out); if (!this.flying) out.y += 0.35 * (this.hipY ? this.hipY / 0.98 : 1); } else out.copy(this.pos); return out; }
   breakApart(power = 1) {
@@ -376,7 +377,7 @@ class Enemy {
   }
 }
 
-class Trooper extends Enemy {
+export class Trooper extends Enemy {
   build(g) { this.biped(g, 0.98, 0.46, 0.16, 0.66); this.h = 1.95; this.zones = [[0, 1.88, 0, 0.2, 2], [0, 1.45, 0, 0.36, 1], [0, 0.98, 0, 0.3, 1], [0, 0.45, 0, 0.28, 0.8]]; this.range = rand(11, 19); }
   deathStyle(o) { return o.explosive || o.melee ? 'burst' : o.crit ? (Math.random() < 0.75 ? 'head' : 'collapse') : Math.random() < 0.3 ? 'overload' : 'collapse'; }
   startDeath() { this.startBipedDeath(); }
@@ -767,7 +768,7 @@ export class Enemies {
   raycastAll(ox, oy, oz, dx, dy, dz, maxT) {
     const out = this._hits; out.length = 0;
     for (const e of this.list) {
-      if (e.dead) continue;
+      if (e.dead || e.friendly) continue;
       const cx = e.pos.x - ox, cy = e.pos.y + (e.flying ? 0 : e.h * 0.5) - oy, cz = e.pos.z - oz, tc = cx * dx + cy * dy + cz * dz;
       if (tc < -e.boundR || tc > maxT + e.boundR) continue; const d2 = cx * cx + cy * cy + cz * cz - tc * tc; if (d2 > e.boundR * e.boundR * (e.flying ? 1 : 1) + e.h * e.h * 0.25) continue;
       let best = null;
@@ -796,7 +797,7 @@ export class Enemies {
       if (e.type === 'drone') { drones++; near = Math.min(near, Math.hypot(e.pos.x - p.x, e.pos.y - p.y, e.pos.z - p.z)); }
     }
     // separation (ground units)
-    for (let i = 0; i < list.length; i++) { const a = list[i]; if (a.dead || a.type === 'boss') continue; for (let j = i + 1; j < list.length; j++) { const b = list[j]; if (b.dead || b.type === 'boss' || a.flying !== b.flying) continue; const dx = b.pos.x - a.pos.x, dz = b.pos.z - a.pos.z, R = a.radius + b.radius + 0.25, d2 = dx * dx + dz * dz; if (d2 < R * R && d2 > 1e-6) { const d = Math.sqrt(d2), k = (R - d) / d * 0.5 * Math.min(1, dt * 10); const ax = a.pos.x - dx * k, az = a.pos.z - dz * k, bx = b.pos.x + dx * k, bz = b.pos.z + dz * k; if (a.flying || !L.navBlocked(ax, az, a.navSize + 1)) { a.pos.x = ax; a.pos.z = az; } if (b.flying || !L.navBlocked(bx, bz, b.navSize + 1)) { b.pos.x = bx; b.pos.z = bz; } } } }
+    for (let i = 0; i < list.length; i++) { const a = list[i]; if (a.dead || a.type === 'boss' || a.netAvatar) continue; for (let j = i + 1; j < list.length; j++) { const b = list[j]; if (b.dead || b.type === 'boss' || b.netAvatar || a.flying !== b.flying) continue; const dx = b.pos.x - a.pos.x, dz = b.pos.z - a.pos.z, R = a.radius + b.radius + 0.25, d2 = dx * dx + dz * dz; if (d2 < R * R && d2 > 1e-6) { const d = Math.sqrt(d2), k = (R - d) / d * 0.5 * Math.min(1, dt * 10); const ax = a.pos.x - dx * k, az = a.pos.z - dz * k, bx = b.pos.x + dx * k, bz = b.pos.z + dz * k; if (a.flying || !L.navBlocked(ax, az, a.navSize + 1)) { a.pos.x = ax; a.pos.z = az; } if (b.flying || !L.navBlocked(bx, bz, b.navSize + 1)) { b.pos.x = bx; b.pos.z = bz; } } } }
     g.audio.loop('loop_drone', drones ? clamp(1.1 - near / 30, 0.05, 0.6) : 0, 1 + clamp(1 - near / 20, 0, 0.3));
     for (let i = this.pendingMats.length - 1; i >= 0; i--) { const pm = this.pendingMats[i]; pm.t -= dt; if (pm.t <= 0) { pm.mat.dispose(); this.pendingMats.splice(i, 1); } }
   }

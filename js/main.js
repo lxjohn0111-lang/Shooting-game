@@ -32,12 +32,13 @@ import { MISSIONS } from './config.js';
     // first-mission control hint
     const origStart = game.startMission.bind(game);
     game.startMission = (i, o) => { origStart(i, o); if (!save.data.seenIntro && !game.input.touch) { setTimeout(() => ui.hint('<kbd>WASD</kbd> move · <kbd>SHIFT</kbd> sprint · <kbd>C</kbd> crouch / slide · <kbd>RMB</kbd> aim · <kbd>R</kbd> reload · <kbd>G</kbd> frag · <kbd>F</kbd> melee · <kbd>Q</kbd> focus', 12), 1500); save.data.seenIntro = true; save.save(); } };
-    // dev / QA hooks:  ?m=1..6 autostart mission, ?onslaught=1, ?god=1
+    // dev / QA hooks:  ?m=1..6 autostart mission, ?mp=dm|dom find a multiplayer match, ?god=1
     if (q.get('god')) game.godMode = true;
     if (q.get('nodrs')) game.noDrs = true;
+    if (q.get('norender')) game.noRender = true;
     if (q.get('credits')) { save.data.credits = +q.get('credits'); }
     if (q.get('m')) { save.data.unlocked = MISSIONS.length; game.startMission(Math.max(0, Math.min(MISSIONS.length - 1, +q.get('m') - 1))); }
-    else if (q.get('onslaught')) game.startMission(0, true);
+    else if (q.get('mp')) { if (q.get('mpname')) game.net.setName(q.get('mpname')); ui.mpMode = q.get('mp') === 'dom' ? 'dom' : 'dm'; game.net.find(ui.mpMode); }
     window.READY = true;
   } catch (e) {
     console.error(e); fail('FAILED TO START: ' + (e && e.message ? e.message : e)); window.READY = true;

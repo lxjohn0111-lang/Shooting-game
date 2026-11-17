@@ -2,6 +2,9 @@
 import * as THREE from './lib/three.min.js';
 import { MISSIONS, WEAPONS, WEAPON_ORDER, WEAPON_UPGRADES, PERKS, DIFFICULTY, upgradeCost, perkCost, rankFor } from './config.js';
 import { clamp, fmtTime, fmtNum } from './util.js';
+import { MP_MODES, TEAMS } from './config.js';
+import { tierOf, PLACEMENT_MATCHES, TIERS } from './mp/ranked.js';
+import { wName } from './mp/session.js';
 
 const $ = (id) => document.getElementById(id);
 const _v = new THREE.Vector3();
@@ -20,27 +23,37 @@ export class UI {
   show(name) {
     for (const k in this.screens) this.screens[k].classList.toggle('on', k === name);
     this.cur = name; const t = $('touch'); t.classList.toggle('play', name === 'hud');
-    if (name === 'menu') this.refreshMenu(); else if (name === 'missions') this.refreshMissions(); else if (name === 'armory') this.refreshArmory(); else if (name === 'settings') this.refreshSettings();
+    if (name === 'menu') this.refreshMenu(); else if (name === 'missions') this.refreshMissions(); else if (name === 'armory') this.refreshArmory(); else if (name === 'settings') this.refreshSettings(); else if (name === 'mp') this.refreshMp();
   }
 
   bind(game) {
     this.game = game; const g = game, snd = (n) => { g.audio.init(); g.audio.resume(); g.audio.play(n, { vol: 0.6, reverb: 0 }); };
     document.addEventListener('mouseover', (e) => { const b = e.target.closest && e.target.closest('button'); if (b && b !== this._hov) { this._hov = b; if (g.audio.ready) g.audio.play('ui_hover', { vol: 0.5, reverb: 0 }); } });
     document.querySelectorAll('[data-go]').forEach((b) => b.addEventListener('click', () => { snd('ui_click'); this.show(b.dataset.go); }));
-    $('btnOnslaught').onclick = () => { snd('ui_confirm'); g.startMission(0, true); };
+    // multiplayer
+    this.mpMode = 'dm';
+    document.querySelectorAll('.mode').forEach((b) => b.addEventListener('click', () => { snd('ui_click'); this.mpMode = b.dataset.mode; document.querySelectorAll('.mode').forEach((x) => x.classList.toggle('sel', x === b)); }));
+    $('btnFind').onclick = () => { snd('ui_confirm'); g.net.setName($('mpName').value); g.net.find(this.mpMode); };
+    $('mpName').addEventListener('change', () => { g.net.setName($('mpName').value); $('mpName').value = g.net.name; });
+    $('mpName').addEventListener('keydown', (e) => { if (e.key === 'Enter') e.target.blur(); });
+    $('btnMmCancel').onclick = () => { snd('ui_click'); if (g.mp) g.mpExit(); else { g.net.cancel(); this.show('mp'); } };
+    $('btnMrAgain').onclick = () => { snd('ui_confirm'); g.mpExit(this.mpMode); };
+    $('btnMrMp').onclick = () => { snd('ui_click'); g.mpExit(); };
+    $('btnMrMenu').onclick = () => { snd('ui_click'); g.mpExit(); this.show('menu'); };
+    this.nps = []; for (let i = 0; i < 12; i++) { const d = document.createElement('div'); d.className = 'np'; d.style.display = 'none'; $('nameplates').appendChild(d); this.nps.push({ el: d, los: false, losT: 0, key: '' }); }
     $('btnDeploy').onclick = () => { if (this.selMission < g.save.data.unlocked) { snd('ui_confirm'); g.startMission(this.selMission); } else snd('ui_deny'); };
     $('btnResume').onclick = () => { snd('ui_click'); g.resume(); };
     $('btnPauseSettings').onclick = () => { snd('ui_click'); this.settingsFrom = 'pause'; this.show('settings'); };
     $('settingsBack').onclick = () => { snd('ui_click'); g.save.save(); this.show(this.settingsFrom); this.settingsFrom = 'menu'; };
     document.querySelector('[data-go="settings"]').addEventListener('click', () => { this.settingsFrom = 'menu'; });
-    const restart = async () => { await g.showAd('midgame'); g.audio.setMuffle(0); g.startMission(g.missionIndex, g.onslaught); };
+    const restart = async () => { await g.showAd('midgame'); g.audio.setMuffle(0); g.startMission(g.missionIndex); };
     $('btnRestart').onclick = () => { snd('ui_click'); g.finishRun(false); restart(); };
-    $('btnQuit').onclick = () => { snd('ui_click'); g.finishRun(false); g.toMenu(); };
+    $('btnQuit').onclick = () => { snd('ui_click'); if (g.mp) { g.mpExit(); return; } g.finishRun(false); g.toMenu(); };
     $('btnRevive').onclick = async () => { snd('ui_click'); $('btnRevive').disabled = true; const ok = await g.revive(); if (!ok) $('btnRevive').disabled = false; };
     $('btnRetry').onclick = () => { snd('ui_click'); if (!this._ended) { g.finishRun(false); } restart(); };
-    $('btnDeathEnd').onclick = () => { snd('ui_click'); if (g.onslaught) { this.results(g, g.finishRun(false)); g.state = 'results'; } else { g.finishRun(false); g.toMenu(); } };
+    $('btnDeathEnd').onclick = () => { snd('ui_click'); g.finishRun(false); g.toMenu(); };
     $('btnDouble').onclick = async () => { snd('ui_click'); $('btnDouble').disabled = true; if (await g.doubleReward()) { $('resCredits').textContent = fmtNum(g.lastResult.credits * 2); $('resNote').textContent = 'CREDITS DOUBLED'; g.audio.play('levelup', { vol: 0.6 }); } else { $('btnDouble').disabled = false; this.toast('NO AD AVAILABLE', 'warn', 2); } };
-    $('btnNext').onclick = async () => { snd('ui_confirm'); const r = g.lastResult; await g.showAd('midgame'); if (r.onslaught) g.startMission(0, true); else if (r.win && g.missionIndex + 1 < MISSIONS.length) g.startMission(g.missionIndex + 1); else g.startMission(g.missionIndex); };
+    $('btnNext').onclick = async () => { snd('ui_confirm'); const r = g.lastResult; await g.showAd('midgame'); if (r.win && g.missionIndex + 1 < MISSIONS.length) g.startMission(g.missionIndex + 1); else g.startMission(g.missionIndex); };
     $('btnResArmory').onclick = () => { snd('ui_click'); g.toMenu(); this.show('armory'); };
     $('btnResMenu').onclick = () => { snd('ui_click'); g.toMenu(); };
     $('btnBuy').onclick = () => this.buyWeapon();
@@ -65,7 +78,7 @@ export class UI {
     $('rankLvl').textContent = r.lvl; $('rankName').textContent = r.name; $('xpFill').style.width = (r.xp / r.need * 100) + '%'; $('xpText').textContent = `${fmtNum(r.xp)} / ${fmtNum(r.need)} XP`; $('menuCredits').textContent = fmtNum(d.credits);
     const done = MISSIONS.filter((m) => d.missions[m.id]).length, st = MISSIONS.reduce((a, m) => a + ((d.missions[m.id] || {}).stars || 0), 0);
     $('menuCampaign').textContent = `${done} / ${MISSIONS.length} complete · ${st} / ${MISSIONS.length * 3} ★`;
-    $('menuOnslaught').textContent = d.onslaught.wave ? `Best: wave ${d.onslaught.wave} · ${fmtNum(d.onslaught.score)} pts` : 'Endless survival';
+    const mp = this.game.net.data, mt = tierOf(mp.mmr); $('menuMp').textContent = mp.matches ? `Ranked · ${mt.label} · ${Math.round(mp.mmr)}` : 'Ranked · Deathmatch & Domination';
   }
   credits() { const c = fmtNum(this.game.save.data.credits); document.querySelectorAll('.creditsVal').forEach((e) => (e.textContent = c)); }
   refreshMissions() {
@@ -164,6 +177,7 @@ export class UI {
     const px = Math.max(5, spread * (H / 2) / Math.tan(cam.fov * Math.PI / 360));
     cr.style.setProperty('--g', px.toFixed(1) + 'px'); cr.style.opacity = p.dead ? 0 : p.adsT > 0.5 && !def.pellets ? 0 : p.sprintT > 0.6 ? 0.35 : 1;
     this.set('scope', 'on', !!p.scoped);
+    if (g.mp) this.mpFrame(g, rdt);
     this.set('clicklock', 'on', g.state === 'playing' && !g.input.locked && !g.input.touch && g.stats.time > 1);
     // prompt / waypoint
     const dr = g.director; this.set('prompt', 'on', !!dr.prompt); if (dr.prompt) this.set('promptTxt', 'text', dr.prompt);
@@ -183,7 +197,11 @@ export class UI {
     const c = this.radar, S = 150, R = 72, range = 48, sin = Math.sin(p.yaw), cos = Math.cos(p.yaw), b = p.body;
     c.clearRect(0, 0, S, S); c.strokeStyle = 'rgba(255,255,255,.14)'; c.lineWidth = 1; c.beginPath(); c.arc(75, 75, R * 0.5, 0, 6.283); c.moveTo(75, 3); c.lineTo(75, 147); c.moveTo(3, 75); c.lineTo(147, 75); c.stroke();
     const plot = (wx, wz, col, r, clampEdge) => { const dx = wx - b.x, dz = wz - b.z; let rx = (dx * cos - dz * sin) / range * R, ry = (dx * sin + dz * cos) / range * R; const l = Math.hypot(rx, ry); if (l > R - 3) { if (!clampEdge) return; rx *= (R - 3) / l; ry *= (R - 3) / l; } c.fillStyle = col; c.beginPath(); c.arc(75 + rx, 75 + ry, r, 0, 6.283); c.fill(); };
-    for (const e of g.enemies.list) if (!e.dead) plot(e.pos.x, e.pos.z, e.type === 'boss' ? '#ff3a2a' : e.elite ? '#ff4ab8' : e.type === 'heavy' ? '#ff8a2a' : '#ff5a4a', e.type === 'boss' ? 6 : e.type === 'heavy' ? 4 : 2.6, e.type === 'boss');
+    if (g.mp) {
+      // multiplayer radar: squad always, enemies only while they are firing
+      for (const e of g.enemies.list) if (!e.dead && e.netAvatar && (e.friendly || g.time - e.lastFire < 2.5)) plot(e.pos.x, e.pos.z, g.mp.mode.teams ? TEAMS[g.mp.teamOf(e.slot)].color : '#ff5a4a', 2.8, false);
+      if (g.mp.mode.id === 'dom' && g.level.points && g.mp.H) g.level.points.forEach((pt, k) => { const o = g.mp.H.pt[k][0]; plot(pt.x, pt.z, o === 0 ? '#5fb8ff' : o === 1 ? '#ff8a3d' : '#e8eef4', 4, true); });
+    } else for (const e of g.enemies.list) if (!e.dead) plot(e.pos.x, e.pos.z, e.type === 'boss' ? '#ff3a2a' : e.elite ? '#ff4ab8' : e.type === 'heavy' ? '#ff8a2a' : '#ff5a4a', e.type === 'boss' ? 6 : e.type === 'heavy' ? 4 : 2.6, e.type === 'boss');
     for (const k of g.pickups) plot(k.x, k.z, k.kind === 'health' ? '#58f08a' : '#ffd24a', 1.8, false);
     if (m && m.kind === 'obj') plot(m.x, m.z, '#5fd4ff', 4, true);
     for (const o of g.objectives) if (o.type === 'core' && !o.dead) plot(o.x, o.z, '#5fd4ff', 3, true);
@@ -193,19 +211,192 @@ export class UI {
   // ---------- end screens ----------
   death(g, canRevive) {
     const s = g.stats; this._ended = false; this.show('death');
-    $('deathStats').innerHTML = `<div>SCORE<b>${fmtNum(s.score)}</b></div><div>KILLS<b>${s.kills}</b></div><div>TIME<b>${fmtTime(s.time)}</b></div><div>${g.onslaught ? 'WAVE' : 'BEST COMBO'}<b>${g.onslaught ? g.director.wave : 'x' + s.maxCombo.toFixed(2)}</b></div>`;
-    const rv = $('btnRevive'); rv.style.display = canRevive ? '' : 'none'; rv.disabled = false; $('btnDeathEnd').querySelector('b').textContent = g.onslaught ? 'END RUN' : 'ABORT TO MENU';
+    $('deathStats').innerHTML = `<div>SCORE<b>${fmtNum(s.score)}</b></div><div>KILLS<b>${s.kills}</b></div><div>TIME<b>${fmtTime(s.time)}</b></div><div>BEST COMBO<b>x${s.maxCombo.toFixed(2)}</b></div>`;
+    const rv = $('btnRevive'); rv.style.display = canRevive ? '' : 'none'; rv.disabled = false; $('btnDeathEnd').querySelector('b').textContent = 'ABORT TO MENU';
   }
   results(g, r) {
     this._ended = true; this.show('results'); g.audio.setMusic('menu'); g.audio.stopLoops(); g.player.rig.visible = !r.win ? false : g.player.rig.visible;
-    $('resSub').textContent = r.onslaught ? 'ONSLAUGHT' : r.name; $('resTitle').textContent = r.onslaught ? `WAVE ${Math.max(0, r.wave - 1)} REACHED` : 'MISSION COMPLETE';
-    $('resStars').innerHTML = r.onslaught ? '' : stars(r.stars); $('resStars').style.display = r.onslaught ? 'none' : '';
+    $('resSub').textContent = r.name; $('resTitle').textContent = 'MISSION COMPLETE';
+    $('resStars').innerHTML = stars(r.stars); $('resStars').style.display = '';
     let rows = `<div>KILLS<b>${r.kills}</b></div><div>ACCURACY<b>${Math.round(r.acc * 100)}%</b></div><div>TIME<b>${fmtTime(r.time)}</b></div><div>BEST COMBO<b>x${r.maxCombo.toFixed(2)}</b></div>`;
-    if (!r.onslaught) rows += `<div>TIME BONUS<b>+${fmtNum(r.timeBonus)}</b></div><div>ACCURACY BONUS<b>+${fmtNum(r.accBonus)}</b></div><div>NO REVIVES<b>+${fmtNum(r.flawless)}</b></div><div>DIFFICULTY<b>${g.diff.name}</b></div>`;
+    rows += `<div>TIME BONUS<b>+${fmtNum(r.timeBonus)}</b></div><div>ACCURACY BONUS<b>+${fmtNum(r.accBonus)}</b></div><div>NO REVIVES<b>+${fmtNum(r.flawless)}</b></div><div>DIFFICULTY<b>${g.diff.name}</b></div>`;
     $('resGrid').innerHTML = rows; $('resScore').textContent = fmtNum(r.score); $('resCredits').textContent = fmtNum(r.credits); $('resXp').textContent = fmtNum(r.xp);
     $('resNote').textContent = [r.newBest ? 'NEW BEST SCORE' : '', r.rankUp ? 'RANK UP' : ''].filter(Boolean).join(' · ');
     const dbl = $('btnDouble'); dbl.disabled = false; dbl.style.display = r.credits > 0 ? '' : 'none';
-    const last = !r.onslaught && g.missionIndex + 1 >= MISSIONS.length; $('btnNext').querySelector('b').textContent = r.onslaught ? 'PLAY AGAIN' : last ? 'REPLAY' : 'NEXT MISSION';
+    const last = g.missionIndex + 1 >= MISSIONS.length; $('btnNext').querySelector('b').textContent = last ? 'REPLAY' : 'NEXT MISSION';
     if (last && r.win) $('resTitle').textContent = 'PROTOCOL TERMINATED';
+  }
+
+  // ================================================================ multiplayer
+  refreshMp() {
+    const g = this.game, svc = g.net, d = svc.data, t = tierOf(d.mmr);
+    this.credits();
+    $('mpEmblem').style.setProperty('--tc', t.color); $('mpEmblemDiv').textContent = t.div || 'E';
+    $('mpTier').textContent = t.label; $('mpTier').style.color = t.color; $('mpMmr').textContent = Math.round(d.mmr);
+    $('mpProg').style.width = (t.progress * 100).toFixed(1) + '%'; $('mpProg').style.background = t.color;
+    $('mpNext').textContent = d.matches < PLACEMENT_MATCHES ? `PLACEMENT MATCH ${d.matches + 1} OF ${PLACEMENT_MATCHES} · RATING MOVES FASTER` : t.toNext ? `${t.toNext} RATING TO THE NEXT DIVISION` : `PEAK RATING ${Math.round(d.best)}`;
+    const kd = d.deaths ? (d.kills / d.deaths).toFixed(2) : d.kills ? d.kills.toFixed(2) : '—';
+    $('mpStats').innerHTML = `<div><span>MATCHES</span><b>${d.matches}</b></div><div><span>WIN RATE</span><b>${d.matches ? Math.round(d.wins / d.matches * 100) + '%' : '—'}</b></div><div><span>K / D</span><b>${kd}</b></div><div><span>PEAK</span><b>${Math.round(d.best || d.mmr)}</b></div>`;
+    const inp = $('mpName'); if (document.activeElement !== inp) inp.value = svc.name;
+    const h = $('mpHist'); h.innerHTML = '';
+    if (!d.history || !d.history.length) { const e = document.createElement('div'); e.className = 'empty'; e.textContent = 'No ranked matches yet. Placement starts with your first one.'; h.appendChild(e); }
+    else for (const m of d.history.slice(0, 5)) {
+      const row = document.createElement('div');
+      const a = document.createElement('span'); a.className = m.w ? 'w' : 'l'; a.textContent = m.left ? 'LEFT' : m.w ? 'WIN' : 'LOSS';
+      const b = document.createElement('span'); b.textContent = `${(MP_MODES[m.md] || MP_MODES.dm).name} · ${m.k} / ${m.de}`;
+      const c = document.createElement('em'); c.className = m.d >= 0 ? 'w' : 'l'; c.textContent = (m.d >= 0 ? '+' : '') + m.d;
+      row.append(a, b, c); h.appendChild(row);
+    }
+    const lad = $('mpLadder'); lad.innerHTML = '';
+    TIERS.forEach((tt, i) => { const c = document.createElement('div'); c.style.setProperty('--tc', tt.color); if (i === t.idx) c.className = 'cur'; const b = document.createElement('b'); b.textContent = tt.name; const sp = document.createElement('span'); sp.textContent = i === t.idx ? 'YOU' : tt.min + '+'; c.append(b, sp); lad.appendChild(c); });
+    document.querySelectorAll('.mode').forEach((x) => x.classList.toggle('sel', x.dataset.mode === this.mpMode));
+    svc.connect(); this.mpLobby(svc);
+  }
+  mpLobby(svc) {
+    const el = $('mpNet'), tx = $('mpNetText'); if (!el) return;
+    el.className = 'net ' + svc.status;
+    if (svc.status === 'connecting') tx.textContent = 'CONNECTING TO THE LOBBY';
+    else if (svc.status === 'online') { const n = svc.onlineCount(); tx.textContent = `ONLINE · ${n} ${n === 1 ? 'OPERATIVE' : 'OPERATIVES'} IN THE LOBBY`; }
+    else tx.textContent = 'OFFLINE · NO MULTIPLAYER SERVER · SEATS ARE FILLED WITH AI';
+  }
+  mmShow(svc) {
+    this.show('mm'); const m = MP_MODES[svc.mode];
+    $('mmMode').textContent = 'RANKED · ' + m.name; $('mmTitle').textContent = 'SEARCHING'; $('mmTime').textContent = '0:00'; $('mmBar').style.width = '0%';
+    $('mmSub').textContent = 'Connecting to the lobby'; $('mmMap').textContent = ''; $('mmSlots').innerHTML = ''; this._mmKey = '';
+  }
+  mmSearch(svc) {
+    if (this.cur !== 'mm') return;
+    $('mmTitle').textContent = 'SEARCHING'; $('mmTime').textContent = fmtTime(svc.searchT);
+    $('mmSub').textContent = svc.status === 'online' ? 'Looking for an open match near your rating' : svc.status === 'connecting' ? 'Connecting to the lobby' : 'Offline · starting a match against AI';
+  }
+  mmUpdate(m) {
+    if (this.cur !== 'mm') return; const H = m.H;
+    if (!H) { $('mmTitle').textContent = 'JOINING MATCH'; $('mmSub').textContent = 'Waiting for the host'; return; }
+    const hum = H.ro.filter((r) => !r[3]).length;
+    if (H.ph === 'form') {
+      const left = Math.max(0, H.win - H.t);
+      $('mmTitle').textContent = 'SEARCHING FOR OPERATIVES'; $('mmTime').textContent = fmtTime(left); $('mmBar').style.width = clamp(H.t / H.win * 100, 0, 100) + '%';
+      $('mmSub').textContent = m.svc.t.online ? `${hum} of ${m.mode.slots} operatives found · AI fills the empty seats when the timer runs out` : 'Offline · empty seats are filled with AI';
+    } else if (H.ph === 'start') { $('mmTitle').textContent = 'MATCH FOUND'; $('mmTime').textContent = String(Math.max(1, Math.ceil(H.t))); $('mmBar').style.width = '100%'; $('mmSub').textContent = 'Deploying'; }
+    else if (H.ph === 'live') { $('mmTitle').textContent = 'JOINING MATCH IN PROGRESS'; $('mmTime').textContent = fmtTime(H.dur - H.t); $('mmSub').textContent = 'Taking over an AI seat'; }
+    $('mmMap').textContent = H.ph === 'form' ? '' : `${H.mn} · ${m.mode.name}`;
+    const key = JSON.stringify(H.ro.map((r) => [r[0], r[1], r[2], r[3]])) + m.mySlot + H.ph;
+    if (key === this._mmKey) return; this._mmKey = key;
+    const box = $('mmSlots'); box.innerHTML = '';
+    const rows = H.ro.map((r, i) => ({ r, i })); if (m.mode.teams) rows.sort((a, b) => a.r[2] - b.r[2]);
+    for (let k = 0; k < m.mode.slots; k++) {
+      const e = rows[k], d = document.createElement('div'), nm = document.createElement('span'), tag = document.createElement('span'); nm.className = 'nm'; tag.className = 'tag';
+      if (!e) { d.className = 'mm-slot empty'; nm.textContent = 'Searching…'; }
+      else {
+        const { r, i } = e; d.className = 'mm-slot ' + (r[3] ? 'b' : 'h') + (i === m.mySlot ? ' me' : '') + (m.mode.teams ? ' t' + r[2] : '');
+        nm.textContent = r[1]; tag.textContent = i === m.mySlot ? 'YOU' : r[3] ? 'AI' : tierOf(r[4]).label;
+      }
+      d.append(nm, tag); box.appendChild(d);
+    }
+  }
+  mpHud(on, m) {
+    const hud = $('hud'); hud.classList.toggle('mp', !!on); hud.classList.toggle('dom', !!(on && m && m.mode.teams)); $('killfeed').innerHTML = ''; $('respawn').classList.remove('on'); $('scoreboard').classList.remove('on');
+    for (const n of this.nps || []) n.el.style.display = 'none';
+    if (!on) return;
+    const top = $('mpTop');
+    if (m.mode.teams) {
+      top.innerHTML = `<div class="mp-teamscore t0"><span>${TEAMS[0].name}</span><b id="ts0">0</b><div class="bar"><i id="tb0"></i></div></div><div><div class="mp-pts">${[0, 1, 2].map((k) => `<div class="mp-pt" id="mpt${k}"><i></i><b>${'ABC'[k]}</b></div>`).join('')}</div><div class="mp-timer" id="mpTimer"></div></div><div class="mp-teamscore t1"><span>${TEAMS[1].name}</span><b id="ts1">0</b><div class="bar"><i id="tb1"></i></div></div>`;
+      this.objective('CAPTURE AND HOLD', `You are ${TEAMS[m.myTeam] ? TEAMS[m.myTeam].name : 'deployed'} · first to ${m.H.lim}`);
+    } else {
+      top.innerHTML = `<div class="mp-dm"><div class="you"><b id="dmYou">0</b><span>YOU</span></div><div><b class="mp-timer" id="mpTimer"></b><span>FIRST TO ${m.H.lim}</span></div><div class="lead"><b id="dmLead">0</b><span id="dmLeadN">LEADER</span></div></div>`;
+      this.objective('ELIMINATE OPERATIVES', `Free-for-all · first to ${m.H.lim}`);
+    }
+    this.cache = {};
+  }
+  mpFrame(g, rdt) {
+    const m = g.mp, H = m.H; if (!H) return; const cam = g.gfx.camera, W = innerWidth, Hh = innerHeight;
+    const left = H.ph === 'live' ? Math.max(0, H.dur - H.t) : H.ph === 'end' ? 0 : H.dur; this.set('mpTimer', 'text', fmtTime(left));
+    if (m.mode.teams) {
+      for (const t of [0, 1]) { this.set('ts' + t, 'text', String(H.ts[t])); this.set('tb' + t, 'w', clamp(H.ts[t] / H.lim * 100, 0, 100).toFixed(1) + '%'); }
+      const ents = this._entsT > 0 ? this._ents : (this._ents = m.ents()); this._entsT = (this._entsT || 0) > 0 ? this._entsT - rdt : 0.2;
+      H.pt.forEach(([own, prog], k) => {
+        const el = $('mpt' + k); if (!el) return; el.className = 'mp-pt' + (own >= 0 ? ' o' + own : '');
+        const pt = g.level.points[k], c = [0, 0]; for (const e of ents) if (e.alive && Math.hypot(e.x - pt.x, e.z - pt.z) < 5.5) c[e.team]++;
+        if (c[0] && c[1]) el.classList.add('contest');
+        const f = el.firstChild; const side = prog > 0 ? 0 : 1; f.style.height = Math.abs(prog) + '%'; f.style.background = TEAMS[side].color;
+        // world marker
+        const pm = $('pm' + k); pm.className = 'pm' + (own >= 0 ? ' o' + own : ''); _v.set(pt.x, 2.6, pt.z).project(cam); let x = _v.x, y = _v.y; const behind = _v.z > 1;
+        if (behind) { x = -x; y = -y; } const off = behind || Math.abs(x) > 0.94 || Math.abs(y) > 0.9; if (off) { const kk = Math.max(Math.abs(x) / 0.94, Math.abs(y) / 0.9, 0.001); x /= kk; y /= kk; pm.classList.add('edge'); }
+        pm.style.transform = `translate(${((x * 0.5 + 0.5) * W).toFixed(0)}px,${((-y * 0.5 + 0.5) * Hh).toFixed(0)}px) translate(-50%,-50%)`;
+        pm.lastChild.textContent = Math.round(Math.hypot(pt.x - g.player.body.x, pt.z - g.player.body.z)) + ' m';
+        // floor ring in the owner's colour
+        const col = own === 0 ? [0.35, 0.75, 1.5] : own === 1 ? [1.5, 0.6, 0.25] : [0.9, 0.9, 0.9]; g.fx.marker(pt.x, 0.06, pt.z, 11, col[0] * 0.6, col[1] * 0.6, col[2] * 0.6, 5);
+        g.fx.add.push(pt.x, 0.2, pt.z, 0, 7, 0, 0.35, 0, 14, 1, col[0], col[1], col[2], 0.55);
+      });
+    } else {
+      const me = H.ro[m.mySlot]; let li = -1; for (let i = 0; i < H.ro.length; i++) if (i !== m.mySlot && (li < 0 || H.ro[i][5] > H.ro[li][5])) li = i;
+      this.set('dmYou', 'text', String(me ? me[5] : 0)); this.set('dmLead', 'text', String(li >= 0 ? H.ro[li][5] : 0)); this.set('dmLeadN', 'text', li >= 0 ? H.ro[li][1] : '—');
+    }
+    // nameplates
+    let n = 0; const p = g.player, cx = cam.position.x, cy = cam.position.y, cz = cam.position.z;
+    for (const [slot, v] of m.views) {
+      const a = v.avatar; if (!a || a.dead || n >= this.nps.length) continue;
+      const np = this.nps[n], d = Math.hypot(a.pos.x - cx, a.pos.z - cz); if (d > (a.friendly ? 90 : 38)) continue;
+      np.losT -= rdt; if (np.key !== v.key || np.losT <= 0) { np.key = v.key; np.losT = 0.3; np.los = g.level.los(cx, cy, cz, a.pos.x, a.pos.y + 1.9, a.pos.z); }
+      if (!a.friendly && !np.los) continue;
+      _v.set(a.pos.x, a.pos.y + 2.3, a.pos.z).project(cam); if (_v.z > 1 || Math.abs(_v.x) > 1.05 || Math.abs(_v.y) > 1.05) continue;
+      const nm = m.nameOf(slot); if (np.el.textContent !== nm) np.el.textContent = nm;
+      np.el.className = 'np ' + (m.mode.teams ? 't' + m.teamOf(slot) : 'e'); np.el.style.display = '';
+      np.el.style.opacity = a.friendly ? 1 : clamp(1.3 - d / 38, 0.3, 1);
+      np.el.style.transform = `translate(${((_v.x * 0.5 + 0.5) * W).toFixed(0)}px,${((-_v.y * 0.5 + 0.5) * Hh).toFixed(0)}px) translate(-50%,-100%)`; n++;
+    }
+    for (; n < this.nps.length; n++) this.nps[n].el.style.display = 'none';
+    // scoreboard (hold TAB)
+    const show = g.input.is('score') || (p.dead && m.respawnT > 1.2 && false);
+    $('scoreboard').classList.toggle('on', show);
+    if (show) { this._sbT = (this._sbT || 0) - rdt; if (this._sbT <= 0) { this._sbT = 0.25; $('scoreboard').innerHTML = this.scoreHtml(m.mode, H.ro, m.mySlot, H, `${m.mode.name} · ${H.mn}`, fmtTime(left)); } }
+  }
+  scoreHtml(mode, ro, me, H, title, sub) {
+    const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+    const row = (r, i, rank) => `<div class="sb-row${i === me ? ' me' : ''}"><span>${rank}</span><span class="nm">${esc(r[1])}${r[3] ? '<span class="ai">AI</span>' : ''}</span><span>${r[5]}</span><span>${r[6]}</span><span>${mode.teams ? r[7] : (r[6] ? (r[5] / r[6]).toFixed(1) : r[5])}</span></div>`;
+    const hd = `<div class="sb-row hd"><span>#</span><span>OPERATIVE</span><span>K</span><span>D</span><span>${mode.teams ? 'CAP' : 'K/D'}</span></div>`;
+    const sorted = ro.map((r, i) => ({ r, i })).sort((a, b) => b.r[5] - a.r[5] || a.r[6] - b.r[6]);
+    let body;
+    if (mode.teams) body = `<div class="sb-cols two">${[0, 1].map((t) => `<div><div class="sb-team t${t}"><span>${TEAMS[t].name}</span><b>${H.ts[t]}</b></div>${hd}${sorted.filter((x) => x.r[2] === t).map((x, k) => row(x.r, x.i, k + 1)).join('')}</div>`).join('')}</div>`;
+    else body = `<div class="sb-cols">${hd}${sorted.map((x, k) => row(x.r, x.i, k + 1)).join('')}</div>`;
+    return `<div class="sb-h"><b>${esc(title)}</b><span>${esc(sub)}</span></div>${body}`;
+  }
+  killFeed(m, killer, victim, w, crit) {
+    const box = $('killfeed'), d = document.createElement('div'), mine = killer === m.mySlot || victim === m.mySlot;
+    d.className = 'kf' + (mine ? ' mine' : '');
+    const cls = (s) => s === m.mySlot ? 'me' : m.mode.teams ? 't' + m.teamOf(s) : 'foe';
+    const nameEl = (s) => { const e = document.createElement('span'); e.className = cls(s); e.textContent = s === m.mySlot ? 'YOU' : m.nameOf(s); return e; };
+    const wep = document.createElement('em'); wep.textContent = (crit ? '◎ ' : '') + (killer < 0 || killer === victim ? 'ELIMINATED' : wName(w)); if (crit) wep.classList.add('crit');
+    if (killer >= 0 && killer !== victim) d.append(nameEl(killer), wep, nameEl(victim)); else d.append(nameEl(victim), wep);
+    box.prepend(d); while (box.children.length > 6) box.lastChild.remove(); setTimeout(() => d.remove(), 5000);
+  }
+  mpRespawn(m, dead) {
+    $('respawn').classList.toggle('on', !!dead);
+    if (dead) { const k = m.killedBy; $('rsBy').textContent = k >= 0 && k !== m.mySlot ? 'BY ' + m.nameOf(k) : ''; this.mpRespawnTimer(m, m.respawnT); }
+  }
+  mpRespawnTimer(m, t) { this.set('rsT', 'text', `REDEPLOYING IN ${Math.ceil(t)}`); }
+  pauseMode(mp) {
+    $('btnRestart').style.display = mp ? 'none' : ''; $('btnQuit').querySelector('b').textContent = mp ? 'LEAVE MATCH' : 'ABORT TO MENU';
+    $('quitSub').textContent = mp ? 'Leaving a ranked match counts as a loss' : ''; $('quitSub').style.display = mp ? '' : 'none';
+  }
+  mpEndBanner(m) {
+    const H = m.H; let t, s;
+    if (m.mode.teams) { t = H.w === -1 ? 'DRAW' : H.w === m.myTeam ? 'VICTORY' : 'DEFEAT'; s = `${TEAMS[0].name} ${H.ts[0]} — ${H.ts[1]} ${TEAMS[1].name}`; }
+    else { t = H.w === m.mySlot ? 'VICTORY' : 'MATCH OVER'; s = H.w >= 0 ? `${m.nameOf(H.w)} WINS WITH ${H.ro[H.w][5]}` : ''; }
+    this.banner(t, s);
+  }
+  mpResults(g, r) {
+    this.show('mpres'); const el = $('mpres'); el.classList.toggle('win', r.win); el.classList.toggle('loss', !r.win && !r.draw);
+    $('mrSub').textContent = `RANKED · ${r.mode.name} · ${r.mapName}`;
+    $('mrTitle').textContent = r.mode.teams ? (r.draw ? 'DRAW' : r.win ? 'VICTORY' : 'DEFEAT') : r.place === 1 ? 'VICTORY' : `#${r.place} OF ${r.total}`;
+    const t = tierOf(r.after), tb = tierOf(r.before);
+    $('mrEmblem').style.setProperty('--tc', t.color); $('mrEmblemDiv').textContent = t.div || 'E';
+    $('mrTier').textContent = t.label + (t.idx > tb.idx || (t.idx === tb.idx && t.div !== tb.div && r.delta > 0) ? ' · PROMOTED' : t.idx < tb.idx || (t.idx === tb.idx && t.div !== tb.div && r.delta < 0) ? ' · DEMOTED' : ''); $('mrTier').style.color = t.color;
+    $('mrBefore').textContent = Math.round(r.before); $('mrAfter').textContent = Math.round(r.after);
+    const de = $('mrDelta'); de.textContent = (r.delta >= 0 ? '+' : '') + r.delta; de.className = r.delta >= 0 ? 'up' : 'down';
+    const bar = $('mrProg'); bar.style.background = t.color; bar.style.transition = 'none'; bar.style.width = (tb.progress * 100) + '%'; requestAnimationFrame(() => requestAnimationFrame(() => { bar.style.transition = 'width 1.2s ease-out'; bar.style.width = (t.progress * 100) + '%'; }));
+    $('mrTable').innerHTML = this.scoreHtml(r.mode, r.ro, r.me, { ts: r.ts }, 'FINAL STANDINGS', r.mode.teams ? `${TEAMS[0].name} ${r.ts[0]} — ${r.ts[1]} ${TEAMS[1].name}` : `${r.K} ELIMINATIONS`);
+    $('mrK').textContent = r.K; $('mrCr').textContent = '+' + fmtNum(r.credits); $('mrXp').textContent = '+' + fmtNum(r.xp);
+    this.mpMode = r.mode.id;
   }
 }

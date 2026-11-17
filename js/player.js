@@ -18,21 +18,22 @@ export class Player {
     this.reset();
   }
 
-  stat(id) { // weapon stats with upgrades applied
-    const w = WEAPONS[id], u = this.game.save.data.upgrades[id] || {};
+  stat(id) { // weapon stats with upgrades applied (multiplayer is a level field: no upgrades)
+    const w = WEAPONS[id], u = this.game.mp ? {} : (this.game.save.data.upgrades[id] || {});
     const dm = 1 + 0.12 * (u.dmg || 0), mg = 1 + 0.2 * (u.mag || 0), hd = 1 - 0.1 * (u.handling || 0);
     return { dmg: w.dmg * dm, mag: Math.round(w.mag * mg), reserve: w.reserve === Infinity ? Infinity : Math.round(w.reserve * mg), reload: w.reload * hd, kick: hd };
   }
 
   reset() {
-    const sv = this.game.save.data, pk = sv.perks;
+    const sv = this.game.save.data, mp = this.game.mp, pk = mp ? {} : sv.perks;
     this.maxHealth = 100 + 20 * (pk.vitality || 0); this.health = this.maxHealth;
     this.maxShield = 60 + 20 * (pk.shield || 0); this.shield = this.maxShield; this.shieldDelay = 0; this.shieldBroken = false;
     this.maxGrenades = 2 + (pk.grenadier || 0); this.grenades = this.maxGrenades;
     this.focus = 0.5; this.focusOn = false; this.focusK = 0; this.focusDur = 5 * (1 + 0.25 * (pk.focus || 0));
     this.dead = false; this.invuln = 0;
     this.inv = []; // owned weapons in slot order
-    for (const id of WEAPON_ORDER) if (sv.weapons.includes(id)) { const st = this.stat(id); this.inv.push({ id, ammo: st.mag, reserve: st.reserve }); }
+    const owned = mp ? mp.loadout : sv.weapons;
+    for (const id of WEAPON_ORDER) if (owned.includes(id)) { const st = this.stat(id); this.inv.push({ id, ammo: st.mag, reserve: st.reserve }); }
     this.cur = Math.min(1, this.inv.length - 1); this.last = 0;
     this.swapT = 0; this.swapTo = -1; this.reloadT = -1; this.fireCd = 0; this.bloom = 0; this.adsT = 0; this.sprintT = 0; this.charge = -1;
     this.recoil = { p: 0, y: 0, vp: 0, vy: 0 }; this.kick = { z: 0, r: 0, roll: 0 }; this.sway = { x: 0, y: 0 }; this.bob = 0; this.bobAmp = 0; this.landDip = 0; this.roll = 0;
@@ -67,6 +68,7 @@ export class Player {
 
   damage(amount, from, opts = {}) {
     if (this.dead || this.invuln > 0 || this.game.godMode) return;
+    this.lastHit = { by: opts.attacker ?? -1, w: opts.wpn ?? (opts.pierceShield ? 92 : 1), crit: !!opts.crit, t: this.game.time };
     amount *= this.game.diff.dmg;
     const g = this.game;
     this.shieldDelay = 3.6 - 0.35 * (g.save.data.perks.shield || 0);
@@ -132,6 +134,7 @@ export class Player {
           if (wh.c && wh.c.prop) g.damageProp(wh.c.prop, st.dmg);
         }
         const ex = ox + dx * endT, ey = oy + dy * endT, ez = oz + dz * endT;
+        if (p === 0 && g.mp) g.mp.onLocalShot(ex, ey, ez);
         if (def.energy) { fx.beam(mx, my, mz, ex, ey, ez, [0.3, 0.8, 1.0], 0.09, 0.5, 10); fx.glow(ex, ey, ez, 1.6, [0.3, 0.8, 1], 0.25, 0, 8); fx.sparks(ex, ey, ez, -dx, -dy + 0.5, -dz, 20, [0.4, 0.8, 1], 12, 1.5); }
         else if (p % 2 === 0) fx.tracer(mx, my, mz, ex, ey, ez, [1, 0.82, 0.5], pellets > 1 ? 0.022 : 0.032);
       }
@@ -184,7 +187,7 @@ export class Player {
     this.cam.getWorldPosition(_v); this.cam.getWorldDirection(_v2);
     let hit = false;
     for (const e of g.enemies.list) {
-      if (e.dead) continue; const dx = e.pos.x - _v.x, dy = e.pos.y + e.h * 0.5 - _v.y, dz = e.pos.z - _v.z, d = Math.hypot(dx, dy, dz);
+      if (e.dead || e.friendly) continue; const dx = e.pos.x - _v.x, dy = e.pos.y + e.h * 0.5 - _v.y, dz = e.pos.z - _v.z, d = Math.hypot(dx, dy, dz);
       if (d < 2.3 + e.radius && (dx * _v2.x + dy * _v2.y + dz * _v2.z) / d > 0.45) { const r = e.hit(130, e.pos.x, e.pos.y + e.h * 0.6, e.pos.z, _v2.x, _v2.y, _v2.z, { melee: true }); hit = true; if (r === 'kill') g.ui.hitmarker(true, false); }
     }
     for (const p of g.level.props) if (!p.dead && Math.hypot(p.x - _v.x, p.z - _v.z) < 2) g.damageProp(p, 40);
@@ -280,12 +283,12 @@ export class Player {
     if (input.hit('grenade') && this.grenades > 0 && this.throwT < 0 && this.meleeT < 0) { this.throwT = 0; this.reloadT = -1; g.audio.play('pin', { vol: 0.6 }); }
     if (this.throwT >= 0) {
       const prev = this.throwT; this.throwT += dt;
-      if (prev < 0.22 && this.throwT >= 0.22) { this.grenades--; cam.getWorldPosition(_v); cam.getWorldDirection(_v2); g.projectiles.spawnGrenade(_v.x + _v2.x * 0.5, _v.y + _v2.y * 0.5 - 0.1, _v.z + _v2.z * 0.5, _v2.x * 17 + b.vx * 0.6, _v2.y * 17 + 4, _v2.z * 17 + b.vz * 0.6, { fuse: 1.9, dmg: 220, radius: 7, owner: 'player' }); g.audio.play('melee', { vol: 0.4 }); g.ui.hudStatus(this); }
+      if (prev < 0.22 && this.throwT >= 0.22) { this.grenades--; cam.getWorldPosition(_v); cam.getWorldDirection(_v2); { const gx = _v.x + _v2.x * 0.5, gy = _v.y + _v2.y * 0.5 - 0.1, gz = _v.z + _v2.z * 0.5, gvx = _v2.x * 17 + b.vx * 0.6, gvy = _v2.y * 17 + 4, gvz = _v2.z * 17 + b.vz * 0.6; g.projectiles.spawnGrenade(gx, gy, gz, gvx, gvy, gvz, { fuse: 1.9, dmg: g.mp ? 150 : 220, radius: g.mp ? 6 : 7, owner: 'player' }); if (g.mp) g.mp.onThrow(gx, gy, gz, gvx, gvy, gvz); } g.audio.play('melee', { vol: 0.4 }); g.ui.hudStatus(this); }
       if (this.throwT > 0.5) this.throwT = -1;
     }
     if (input.hit('melee') && this.meleeT < 0 && this.throwT < 0 && this.swapTo < 0) this._melee();
     if (this.meleeT >= 0) { this.meleeT += dt; if (this.meleeT > 0.42) this.meleeT = -1; }
-    if (input.hit('focus')) { if (!this.focusOn && this.focus >= 0.3) { this.focusOn = true; g.audio.play('focus_in', { vol: 0.8, reverb: 0.3 }); } else if (this.focusOn) this.focusOn = false; else g.audio.play('ui_deny', { vol: 0.4, reverb: 0 }); }
+    if (input.hit('focus') && !g.mp) { if (!this.focusOn && this.focus >= 0.3) { this.focusOn = true; g.audio.play('focus_in', { vol: 0.8, reverb: 0.3 }); } else if (this.focusOn) this.focusOn = false; else g.audio.play('ui_deny', { vol: 0.4, reverb: 0 }); }
     if (this.focusOn) { this.focus -= g.realDt / this.focusDur; if (this.focus <= 0) { this.focus = 0; this.focusOn = false; } if (!this.focusOn) g.audio.play('focus_out', { vol: 0.7, reverb: 0.3 }); }
     this.focusK = damp(this.focusK, this.focusOn ? 1 : 0, 9, g.realDt);
     // recoil spring

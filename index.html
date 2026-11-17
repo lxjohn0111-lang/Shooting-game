@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <title>VANTA PROTOCOL</title>
-<meta name="description" content="VANTA PROTOCOL — a cinematic first-person shooter. Fight rogue war machines across a six-mission campaign and endless Onslaught mode.">
+<meta name="description" content="VANTA PROTOCOL — a cinematic first-person shooter. Fight rogue war machines across a six-mission campaign and ranked multiplayer: Deathmatch and Domination.">
 <link rel="stylesheet" href="css/style.css">
 <script src="https://sdk.crazygames.com/crazygames-sdk-v3.js"></script>
 </head>
@@ -28,7 +28,7 @@
       <div class="tagline">THE MACHINES STOPPED TAKING ORDERS.</div>
       <nav class="mainnav">
         <button class="btn primary" data-go="missions"><b>CAMPAIGN</b><small id="menuCampaign">6 missions</small></button>
-        <button class="btn" id="btnOnslaught"><b>ONSLAUGHT</b><small id="menuOnslaught">Endless survival</small></button>
+        <button class="btn" data-go="mp"><b>MULTIPLAYER</b><small id="menuMp">Ranked · Deathmatch &amp; Domination</small></button>
         <button class="btn" data-go="armory"><b>ARMORY</b><small>Weapons &amp; upgrades</small></button>
         <button class="btn" data-go="settings"><b>SETTINGS</b><small>Graphics, audio, controls</small></button>
         <button class="btn" data-go="help"><b>HOW TO PLAY</b><small>Controls &amp; tips</small></button>
@@ -120,6 +120,7 @@
         <div><kbd>F</kbd><span>Melee strike</span></div>
         <div><kbd>Q</kbd><span>Neural Focus (slow time)</span></div>
         <div><kbd>E</kbd><span>Interact</span></div>
+        <div><kbd>TAB</kbd><span>Scoreboard (multiplayer)</span></div>
         <div><kbd>P</kbd> / <kbd>ESC</kbd><span>Pause</span></div>
       </div>
       <ul class="tips">
@@ -130,6 +131,62 @@
         <li>Chain kills to build your <b>combo multiplier</b> and charge Neural Focus.</li>
         <li>Red barrels explode. So do Skitters — keep your distance.</li>
       </ul>
+    </div>
+  </section>
+
+  <!-- MULTIPLAYER -->
+  <section id="mp" class="screen panelscreen">
+    <header class="phead"><button class="back" data-go="menu">&#8592; BACK</button><h2>MULTIPLAYER</h2><span class="credits"><i class="cr"></i><span class="creditsVal">0</span></span></header>
+    <div class="pbody split mpbody">
+      <div class="mp-left">
+        <div class="rankcard">
+          <div class="emblem" id="mpEmblem"><span id="mpEmblemDiv">III</span></div>
+          <div class="rank-info">
+            <div class="md-sub">RANKED SEASON 1</div>
+            <div class="rank-tier" id="mpTier">SILVER III</div>
+            <div class="mmr"><b id="mpMmr">1000</b> RATING</div>
+            <div class="xp-bar"><i id="mpProg"></i></div>
+            <div class="rank-next" id="mpNext"></div>
+          </div>
+        </div>
+        <div class="mp-stats" id="mpStats"></div>
+        <label class="callsign" for="mpName">CALLSIGN<input id="mpName" maxlength="16" autocomplete="off" spellcheck="false"></label>
+        <div class="mp-hist-h">RECENT MATCHES</div>
+        <div class="mp-hist" id="mpHist"></div>
+      </div>
+      <div class="mp-right">
+        <div class="modes">
+          <button class="mode sel" data-mode="dm">
+            <div class="mode-art dm"><i></i><i></i><i></i><i></i><i></i><i></i></div>
+            <div class="mode-name">DEATHMATCH</div>
+            <div class="mode-desc">Free-for-all. Every operative for themselves. First to 25 eliminations.</div>
+            <div class="chips"><span>8 PLAYERS</span><span>FREE-FOR-ALL</span><span>8 MIN</span></div>
+          </button>
+          <button class="mode" data-mode="dom">
+            <div class="mode-art dom"><b class="a"><span>A</span></b><b class="b"><span>B</span></b><b class="c"><span>C</span></b></div>
+            <div class="mode-name">DOMINATION</div>
+            <div class="mode-desc">Two squads of five fight over points A, B and C. Held points score every two seconds. First to 250.</div>
+            <div class="chips"><span>5 V 5</span><span>CAPTURE</span><span>10 MIN</span></div>
+          </button>
+        </div>
+        <div class="ladder-h">RANKED TIERS</div>
+        <div class="ladder" id="mpLadder"></div>
+        <div class="net" id="mpNet"><i></i><span id="mpNetText">CONNECTING</span></div>
+        <button class="btn primary wide" id="btnFind"><b>FIND MATCH</b><small id="btnFindSub">Random map · up to 30 s search, then AI fills empty seats</small></button>
+      </div>
+    </div>
+  </section>
+
+  <!-- MATCHMAKING -->
+  <section id="mm" class="screen overlay">
+    <div class="card widecard mmcard">
+      <div class="md-sub" id="mmMode">RANKED · DEATHMATCH</div>
+      <h2 id="mmTitle">SEARCHING</h2>
+      <div class="mm-clock"><b id="mmTime">0:30</b><div class="mm-bar"><i id="mmBar"></i></div></div>
+      <div class="mm-sub" id="mmSub">Looking for operatives near your rating</div>
+      <div class="mm-slots" id="mmSlots"></div>
+      <div class="mm-map" id="mmMap"></div>
+      <button class="btn wide" id="btnMmCancel"><b>CANCEL</b></button>
     </div>
   </section>
 
@@ -178,6 +235,12 @@
       <div class="sub-row"><span class="nades" id="nades"></span><span class="slots" id="slots"></span></div>
     </div>
     <div id="fps"></div>
+    <div id="mphud"><div class="mp-top" id="mpTop"></div></div>
+    <div id="pointMarks"><div class="pm" id="pm0"><b>A</b><i></i><span></span></div><div class="pm" id="pm1"><b>B</b><i></i><span></span></div><div class="pm" id="pm2"><b>C</b><i></i><span></span></div></div>
+    <div id="nameplates"></div>
+    <div id="killfeed"></div>
+    <div id="respawn"><div class="rs-k">ELIMINATED</div><div class="rs-by" id="rsBy"></div><div class="rs-t" id="rsT"></div></div>
+    <div id="scoreboard"></div>
   </section>
 
   <!-- PAUSE -->
@@ -187,7 +250,7 @@
       <button class="btn primary wide" id="btnResume"><b>RESUME</b></button>
       <button class="btn wide" id="btnPauseSettings"><b>SETTINGS</b></button>
       <button class="btn wide" id="btnRestart"><b>RESTART MISSION</b></button>
-      <button class="btn wide" id="btnQuit"><b>ABORT TO MENU</b></button>
+      <button class="btn wide" id="btnQuit"><b>ABORT TO MENU</b><small id="quitSub"></small></button>
     </div>
   </section>
 
@@ -221,6 +284,25 @@
     </div>
   </section>
 
+  <!-- MULTIPLAYER RESULTS -->
+  <section id="mpres" class="screen overlay">
+    <div class="card widecard mprescard">
+      <div class="md-sub" id="mrSub"></div>
+      <h2 id="mrTitle">VICTORY</h2>
+      <div class="mr-rank">
+        <div class="emblem small" id="mrEmblem"><span id="mrEmblemDiv"></span></div>
+        <div class="mr-rank-info"><div class="rank-tier" id="mrTier"></div><div class="mr-mmr"><span id="mrBefore"></span> &#8594; <b id="mrAfter"></b> <em id="mrDelta"></em></div><div class="xp-bar"><i id="mrProg"></i></div></div>
+      </div>
+      <div class="mr-table" id="mrTable"></div>
+      <div class="res-earn"><div><span>ELIMINATIONS</span><b id="mrK">0</b></div><div><span>CREDITS</span><b id="mrCr">0</b></div><div><span>XP</span><b id="mrXp">0</b></div></div>
+      <div class="res-btns">
+        <button class="btn primary" id="btnMrAgain"><b>PLAY AGAIN</b></button>
+        <button class="btn" id="btnMrMp"><b>MULTIPLAYER</b></button>
+        <button class="btn" id="btnMrMenu"><b>MAIN MENU</b></button>
+      </div>
+    </div>
+  </section>
+
   <!-- TOUCH CONTROLS -->
   <div id="touch">
     <div class="look"></div>
@@ -236,6 +318,7 @@
     <button class="tb t-focus" data-act="focus">FOCUS</button>
     <button class="tb t-use" data-act="interact">USE</button>
     <button class="tb t-pause" data-act="pause">II</button>
+    <button class="tb t-score" data-act="score">TAB</button>
   </div>
 </div>
 <script type="module" src="js/main.js"></script>

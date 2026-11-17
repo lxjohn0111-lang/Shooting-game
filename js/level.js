@@ -518,7 +518,7 @@ export class Level {
       // cell centers pushed away from central road cross
       const cx = -H + (i + 0.5) * CS, cz = -H + (j + 0.5) * CS;
       const x = cx + (cx > 0 ? 1.6 : -1.6), z = cz + (cz > 0 ? 1.6 : -1.6);
-      const isStart = j === N - 1 && (i === N / 2 - 1 || i === N / 2);
+      const isStart = (j === N - 1 || (this.def.mp && j === 0)) && (i === N / 2 - 1 || i === N / 2);
       const inner = (i === N / 2 - 1 || i === N / 2) && (j === N / 2 - 1 || j === N / 2);
       cells.push({ i, j, x, z, type: isStart ? 'cover' : inner ? (r.chance(0.5) ? 'cover' : pickType()) : pickType() });
     }
@@ -537,11 +537,38 @@ export class Level {
       this.spawns.push({ x: x + (i === N / 2 ? 0 : (x > 0 ? 1.6 : -1.6)), z: z + (j === N / 2 ? 0 : (z > 0 ? 1.6 : -1.6)) });
     }
     for (const s of [-1, 1]) { this.spawns.push({ x: 0, z: s * (H - 4) }, { x: s * (H - 4), z: 0 }, { x: s * (H - 3), z: s * (H - 3) }, { x: s * (H - 3), z: -s * (H - 3) }); }
+    if (this.def.mp) { this._mpLayout(); return; }
     // scattered explosive barrels
     for (let k = 0; k < 14; k++) { const c = r.pick(cells); const a = r.f(TAU); this._tryBarrel(c.x + Math.cos(a) * r.f(6.8, 8), c.z + Math.sin(a) * r.f(6.8, 8)); }
     // zone labels on asphalt
     this.piece(0, 0, 0, 0).floorLabel(0, 7, 1.8, 0, H - 14, PAL.white);
     this.piece(0, 0, 0, 0).floorLabel(15, 5, 1.2, 0, -H + 12, PAL.yellow);
+  }
+
+  // multiplayer arena: capture points on the centre road, cover around them, team spawn lines on the two far edges
+  _mpLayout() {
+    const H = this.half, r = this.rng, px = H - 10;
+    this.points = [{ id: 'A', x: -px, z: 0 }, { id: 'B', x: 0, z: 0 }, { id: 'C', x: px, z: 0 }];
+    for (const p of this.points) {
+      for (const s of [-1, 1]) this._paintLine(p.x - 4.5, s * 4.5, p.x + 4.5, s * 4.5, 0.2, PAL.yellow);
+      if (p.id === 'B') { for (const [ox, oz, rot] of [[-5.2, 0, 0], [5.2, 0, 0]]) this.barrier(p.x + ox, p.z + oz, rot, 0); this.sandbags(p.x, -2.9, 0, 4, 4); this.sandbags(p.x, 2.9, 0, 4, 4); }
+      else { const out = Math.sign(p.x); this.barrier(p.x - out * 4.8, -1.6, 0, 1); this.barrier(p.x + out * 3.2, 1.8, 0, 0); this.sandbags(p.x, -3.0, 0, 5, 4); this.crate(p.x + out * 1.2, 0, 3.1, 1.1, 'olive', r.f(-0.2, 0.2)); }
+      this.piece(0, 0, 0, 0).floorLabel(p.id === 'A' ? 7 : p.id === 'B' ? 8 : 9, 2.2, 1.1, p.x, p.z + 3.6, PAL.white);
+    }
+    // extra cover on the lanes leading out of each spawn
+    for (const s of [-1, 1]) { this.barrier(-7.5, s * (H - 13), 1, 0); this.barrier(7.5, s * (H - 13), 1, 0); this.sandbags(0, s * (H - 17), 0, 5, 3); }
+    this.start = { x: 0, z: H - 4, yaw: 0 };
+  }
+  // spawn candidates computed once nav is built
+  _mpSpawns() {
+    const H = this.half, ok = (x, z) => !this.navBlocked(x, z, 2);
+    this.teamSpawns = [[], []];
+    for (let t = 0; t < 2; t++) {
+      const z0 = (t === 0 ? 1 : -1) * (H - 3);
+      for (let dz = 0; dz < 6 && this.teamSpawns[t].length < 8; dz += 1.5) for (let x = -24; x <= 24; x += 2.5) { const z = z0 - Math.sign(z0) * dz; if (ok(x, z) && this.teamSpawns[t].every((p) => Math.hypot(p.x - x, p.z - z) > 2.4)) this.teamSpawns[t].push({ x, z, yaw: t === 0 ? 0 : Math.PI }); }
+    }
+    this.dmSpawns = this.spawns.filter((s) => ok(s.x, s.z)).map((s) => ({ x: s.x, z: s.z, yaw: Math.atan2(s.x, s.z) }));
+    for (const t of this.teamSpawns) for (const s of t) this.dmSpawns.push(s);
   }
 
   _tryBarrel(x, z) {
@@ -753,6 +780,7 @@ export class Level {
     this._buildNav();
     // sanitize spawns / slots
     this.spawns = this.spawns.filter(s => !this.navBlocked(s.x, s.z, 1));
+    if (this.def.mp) this._mpSpawns();
     this.gfx.scene.add(this.group);
   }
   _hashInsert(c) {
@@ -914,9 +942,29 @@ export class Level {
       j = i + N; if (j < N * N && cl[j] >= size && dist[j] > d) { dist[j] = d; q[qt++] = j; }
     }
   }
+  // cached distance field to an arbitrary target (used by multiplayer AI); returns Uint16Array or null
+  flowField(tx, tz, size = 1) {
+    const N = this.navN, cl = this.clear, H = this.navH;
+    let start = this.navIdx(tx, tz);
+    if (cl[start] < size) { let best = -1, bd = 1e9; const sx = Math.floor(tx + H), sz = Math.floor(tz + H);
+      for (let r = 1; r < 10 && best < 0; r++) for (let dz = -r; dz <= r; dz++) for (let dx = -r; dx <= r; dx++) { if (Math.max(Math.abs(dx), Math.abs(dz)) !== r) continue; const x = sx + dx, z = sz + dz; if (x < 0 || z < 0 || x >= N || z >= N) continue; const i = z * N + x; if (cl[i] >= size) { const d = dx * dx + dz * dz; if (d < bd) { bd = d; best = i; } } }
+      if (best < 0) return null; start = best; }
+    const key = start * 4 + size; this._ff = this._ff || new Map();
+    let dist = this._ff.get(key);
+    if (dist) { this._ff.delete(key); this._ff.set(key, dist); return dist; }
+    if (this._ff.size >= 24) { const k0 = this._ff.keys().next().value; dist = this._ff.get(k0); this._ff.delete(k0); } else dist = new Uint16Array(N * N);
+    const q = this._queue; dist.fill(65535); dist[start] = 0; let qh = 0, qt = 0; q[qt++] = start;
+    while (qh < qt) { const i = q[qh++], d = dist[i] + 1;
+      let j = i - 1; if (cl[j] >= size && dist[j] > d) { dist[j] = d; q[qt++] = j; }
+      j = i + 1; if (cl[j] >= size && dist[j] > d) { dist[j] = d; q[qt++] = j; }
+      j = i - N; if (j >= 0 && cl[j] >= size && dist[j] > d) { dist[j] = d; q[qt++] = j; }
+      j = i + N; if (j < N * N && cl[j] >= size && dist[j] > d) { dist[j] = d; q[qt++] = j; } }
+    this._ff.set(key, dist); return dist;
+  }
+  flowDir(which, x, z, out) { return this.flowDirIn(this.flow[which], x, z, out); }
   // direction of steepest descent toward target; writes into out {x,z}; returns distance in cells
-  flowDir(which, x, z, out) {
-    const N = this.navN, H = this.navH, dist = this.flow[which];
+  flowDirIn(dist, x, z, out) {
+    const N = this.navN, H = this.navH;
     const ix = clamp(Math.floor(x + H), 1, N - 2), iz = clamp(Math.floor(z + H), 1, N - 2), i = iz * N + ix;
     let best = dist[i], bx = 0, bz = 0;
     for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) {

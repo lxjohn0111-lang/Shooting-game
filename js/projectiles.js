@@ -34,9 +34,9 @@ export class Projectiles {
     if (dmg > 0 && d < radius * 1.15 && !p.dead) {
       if (g.level.los(x, y + 0.4, z, b.x, b.y + 1.0, b.z)) { const k = clamp(1 - d / (radius * 1.15), 0, 1); p.damage(dmg * k * (owner === 'player' ? 0.3 : 0.55), { x, y, z }); const l = Math.hypot(b.x - x, b.z - z) || 1; b.vx += (b.x - x) / l * 6 * k; b.vz += (b.z - z) / l * 6 * k; b.vy += 3.5 * k; b.onGround = false; }
     }
-    if (owner !== 'enemyOnly') {
+    if (owner !== 'enemyOnly' && dmg > 0) {
       for (const e of g.enemies.list) {
-        if (e.dead) continue; const ey = e.pos.y + e.h * 0.5, de = Math.hypot(e.pos.x - x, ey - y, e.pos.z - z) - e.radius;
+        if (e.dead || e.friendly) continue; const ey = e.pos.y + e.h * 0.5, de = Math.hypot(e.pos.x - x, ey - y, e.pos.z - z) - e.radius;
         if (de < radius) { const k = clamp(1 - de / radius, 0.15, 1); const l = Math.hypot(e.pos.x - x, e.pos.z - z) || 1; const res = e.hit(dmg * k * (owner === 'player' ? 1 : 0.6), e.pos.x, ey, e.pos.z, (e.pos.x - x) / l, 0.4, (e.pos.z - z) / l, { explosive: true }); if (owner === 'player' && res) g.ui.hitmarker(res === 'kill', false); }
       }
     }

@@ -11,19 +11,16 @@ import { Player } from './player.js';
 import { Enemies } from './enemies.js';
 import { Projectiles } from './projectiles.js';
 import { Builder } from './models.js';
-import { MISSIONS, ONSLAUGHT, DIFFICULTY, ENEMIES, WEAPONS, rankFor } from './config.js';
+import { MISSIONS, DIFFICULTY, ENEMIES, WEAPONS, rankFor } from './config.js';
+import { MPService, MP_DIFF } from './mp/session.js';
 import { rand, clamp, damp, pick, TAU, RNG } from './util.js';
 
 const _v = new THREE.Vector3();
 
 class Director {
   constructor(game) { this.game = game; this.reset(); }
-  reset() { this.queue = []; this.spawnT = 0; this.phaseI = -1; this.phase = null; this.done = false; this.objs = []; this.wave = 0; this.waveT = 0; this.pressT = 0; this.timer = 0; this.maxAlive = 12; this.elapsed = 0; this.waveActive = false; this.onslaught = false; this.marker = null; this.prompt = null; }
-  start(mission, onslaught) {
-    this.reset(); this.mission = mission; this.onslaught = onslaught;
-    if (onslaught) { this.phase = { type: 'onslaught', text: 'Survive the onslaught' }; this.waveT = 4; this.game.ui.objective('SURVIVE', 'Wave 1 incoming'); }
-    else this.next();
-  }
+  reset() { this.queue = []; this.spawnT = 0; this.phaseI = -1; this.phase = null; this.done = false; this.objs = []; this.wave = 0; this.waveT = 0; this.pressT = 0; this.timer = 0; this.maxAlive = 12; this.elapsed = 0; this.waveActive = false; this.marker = null; this.prompt = null; }
+  start(mission) { this.reset(); this.mission = mission; this.next(); }
   next() {
     const g = this.game, m = this.mission; this.clearObjs(); this.phaseI++;
     if (this.phaseI >= m.phases.length) { this.done = true; g.completeMission(); return; }
@@ -50,7 +47,6 @@ class Director {
     if (ph.type === 'eliminate') sub = `Wave ${Math.min(this.wave + (this.waveActive ? 0 : 1), ph.waves.length)} / ${ph.waves.length}`;
     else if (ph.type === 'uplink') sub = `Terminals ${this.active} / ${ph.count}`;
     else if (ph.type === 'destroy') sub = `Cores remaining: ${this.left}`;
-    else if (ph.type === 'onslaught') sub = `Wave ${this.wave}`;
     else if (ph.type === 'boss') sub = 'Target the glowing heat cores';
     ui.objective(ph.text.toUpperCase(), sub);
   }
@@ -66,11 +62,8 @@ class Director {
   }
   doSpawn(q) {
     const g = this.game, s = this.pickSpawn(q.type);
-    const wave = this.onslaught ? this.wave : 0;
-    // difficulty curve: Onslaught starts soft and ramps per wave; campaign ramps per mission
-    let hpMul = 1, dmgMul = 1;
-    if (this.onslaught) { hpMul = 1 + Math.max(0, wave - 3) * 0.035; dmgMul = clamp(0.6 + wave * 0.08, 0.6, 1) * (1 + Math.max(0, wave - 6) * 0.025); }
-    else { const mi = Math.min(5, g.missionIndex || 0); dmgMul = [0.72, 0.82, 0.9, 0.97, 1.04, 1.1][mi]; hpMul = 0.88 + 0.04 * mi; }
+    // difficulty curve: enemies get tougher mission by mission
+    const mi = Math.min(5, g.missionIndex || 0), dmgMul = [0.72, 0.82, 0.9, 0.97, 1.04, 1.1][mi], hpMul = 0.88 + 0.04 * mi;
     g.enemies.spawn(q.type, s.x, s.z, { elite: q.elite, hpMul, dmgMul });
     if (q.type !== 'drone') { g.fx.spawnBeam(s.x, s.z, q.elite ? [1, 0.2, 0.7] : [1, 0.35, 0.15]); g.audio.play('spawn', { pos: { x: s.x, y: 1, z: s.z }, vol: 0.7, ref: 10, throttle: 0.1 }); }
   }
@@ -83,7 +76,7 @@ class Director {
     const alive = g.enemies.alive();
     // spawn queue
     this.spawnT -= dt;
-    if (this.queue.length && this.spawnT <= 0 && alive < this.maxAlive) { this.spawnT = this.onslaught ? Math.max(0.45, 1.05 - this.wave * 0.06) : 0.55; this.doSpawn(this.queue.shift()); }
+    if (this.queue.length && this.spawnT <= 0 && alive < this.maxAlive) { this.spawnT = 0.55; this.doSpawn(this.queue.shift()); }
     const pressure = () => { this.pressT -= dt; if (this.pressT <= 0 && ph.pressure) { const cap = Math.min(this.maxAlive, 4 + this.elapsed / 40); if (alive + this.queue.length < cap) { let e = pick(ph.pressure); const CAP = { lancer: 2, heavy: 2 }; if (CAP[e[0]] !== undefined && this.typeCount(e[0]) >= CAP[e[0]]) e = ph.pressure[0]; this.enqueue([[e[0], Math.max(1, Math.round(e[1] * rand(0.6, 1)))]]); } this.pressT = rand(6, 9.5); } };
     this.marker = null; this.prompt = null;
     if (ph.type === 'eliminate') {
@@ -116,19 +109,6 @@ class Director {
     } else if (ph.type === 'boss') {
       const boss = g.enemies.boss; if (boss && !boss.dead) ui.bossHp(boss.hp / boss.maxHp); else if (!this.bossDead) { this.bossDead = true; ui.bossBar(false); this.waveT = 5.8; for (const e of g.enemies.list) if (!e.dead) e.die(0, 1, 0, {}); }
       if (this.bossDead) { this.waveT -= dt; if (this.waveT <= 0) this.next(); }
-    } else if (ph.type === 'onslaught') {
-      if (!this.waveActive) {
-        this.waveT -= dt;
-        if (this.waveT <= 0) {
-          this.wave++; this.waveActive = true; const w = this.wave; let budget = 4 + w * 1.6 + w * w * 0.07; const list = {};
-          const avail = [['drone', 1], ['trooper', 1]]; if (w >= 3) avail.push(['crawler', 1.2]); if (w >= 5) avail.push(['lancer', 1]); if (w >= 8) avail.push(['heavy', 0.6]);
-          let guard = 0; while (budget > 0.9 && guard++ < 200) { const [t] = pick(avail); const c = ENEMIES[t].cost; if (c > budget + 1) continue; if (t === 'heavy' && (list.heavy || 0) >= 1 + Math.floor((w - 8) / 6)) continue; if (t === 'lancer' && (list.lancer || 0) >= 1 + Math.floor(w / 6)) continue; list[t] = (list[t] || 0) + 1; budget -= c; }
-          const heavyWave = w >= 10 && w % 5 === 0; if (heavyWave) list.heavy = (list.heavy || 0) + 1;
-          this.enqueue(Object.entries(list), 1, clamp((w - 5) * 0.03, 0, 0.4)); this.maxAlive = Math.min(18, 6 + w);
-          ui.banner(`WAVE ${w}`, heavyWave ? 'HEAVY ASSAULT' : 'HOSTILES INBOUND'); g.audio.play('wave', { vol: 0.8 }); this.hud();
-        }
-      } else if (!this.queue.length && alive === 0) { this.waveActive = false; this.waveT = 7; g.addScore(250 * this.wave, `WAVE ${this.wave} CLEARED`); g.dropSupply(); ui.toast('WAVE CLEARED — RESUPPLY INBOUND', 'good', 2); g.stats.wave = this.wave; }
-      else if (alive <= 2 && !this.queue.length) { for (const e of g.enemies.list) if (!e.dead) { this.marker = { x: e.pos.x, y: e.pos.y + e.h + 0.4, z: e.pos.z, kind: 'enemy' }; break; } }
     }
     if (ph.type !== 'uplink' || !this.uploading) { if (ph.type === 'uplink') ui.progress(false); }
   }
@@ -159,6 +139,7 @@ export class Game {
     await step(0.55, 'SYNTHESIZING AUDIO');
     this.audio.prepare();
     await step(0.7, 'ASSEMBLING HOSTILES');
+    this.net = new MPService(this);
     this.fx = new FX(this); this.enemies = new Enemies(this); this.enemies.prewarm(); this.projectiles = new Projectiles(this); this.director = new Director(this);
     this.player = new Player(this); this.player.baseFov = s.fov; this.player.rig.visible = false;
     await step(0.82, 'BUILDING KESTREL STATION');
@@ -191,19 +172,17 @@ export class Game {
   }
 
   // ---------- mission flow ----------
-  startMission(index, onslaught = false) {
+  startMission(index) {
     const ui = this.ui; this.audio.init(); this.audio.resume();
     ui.show('deploy');
     setTimeout(() => {
-      let def;
-      if (onslaught) { const r = new RNG((Date.now() / 1000) | 0); def = { ...ONSLAUGHT, theme: r.pick(ONSLAUGHT.themes), sky: r.pick(ONSLAUGHT.skies), seed: r.i(1, 9999), phases: [] }; }
-      else def = MISSIONS[index];
-      this.mission = def; this.missionIndex = index; this.onslaught = onslaught;
+      const def = MISSIONS[index];
+      this.mission = def; this.missionIndex = index; this.mp = null;
       this.diff = DIFFICULTY[this.save.data.difficulty] || DIFFICULTY.veteran;
       this.loadLevel(def);
       this.stats = this.newStats(); this.player.reset(); this.player.baseFov = this.settings.fov;
       const st = this.level.start; this.player.place(st.x, st.z, st.yaw); this.player.rig.visible = true;
-      this.director.start(def, onslaught);
+      this.director.start(def);
       this.timeScale = 1; this.slowT = 0; this.gfx.fx.uFade.value = 1; this.fadeIn = 1;
       this.audio.setMusic('combat'); this.audio.intensity = 0.2;
       this.state = 'playing'; ui.show('hud'); ui.hudAll(this.player); ui.bossBar(def.phases[0] && def.phases[0].type === 'boss', 'COLOSSUS');
@@ -211,15 +190,22 @@ export class Game {
       this.gfx.renderer.compile(this.gfx.scene, this.gfx.camera);
     }, 60);
   }
-  pause() { if (this.state !== 'playing') return; this.state = 'paused'; this.input.enabled = false; this.input.unlock(); this.sdk.gameplayStop(); this.ui.show('pause'); this.audio.setMuffle(1); }
-  resume() { if (this.state !== 'paused') return; this.state = 'playing'; this.input.enabled = true; this.input.lock(); this.sdk.gameplayStart(); this.ui.show('hud'); this.audio.setMuffle(0); this.last = performance.now(); }
+  pause() {
+    if (this.mp && this.state === 'playing') { if (this.mpPaused) return; this.mpPaused = true; this.input.enabled = false; this.input.unlock(); this.ui.show('pause'); this.ui.pauseMode(true); return; }
+    if (this.state !== 'playing') return; this.state = 'paused'; this.input.enabled = false; this.input.unlock(); this.sdk.gameplayStop(); this.ui.show('pause'); this.audio.setMuffle(1); }
+  resume() {
+    if (this.mp && this.mpPaused) { this.mpPaused = false; this.input.enabled = true; this.input.lock(); this.ui.show('hud'); this.last = performance.now(); return; }
+    if (this.state !== 'paused') return; this.state = 'playing'; this.input.enabled = true; this.input.lock(); this.sdk.gameplayStart(); this.ui.show('hud'); this.audio.setMuffle(0); this.last = performance.now(); }
   toMenu() {
+    if (this.mp) { const m = this.mp; this.mp = null; this.mpPaused = false; m.forfeit(); m.leave(); this.net.matchClosed(); }
+    this.ui.pauseMode(false); this.ui.mpHud(false);
     this.state = 'menu'; this.input.enabled = false; this.input.unlock(); this.sdk.gameplayStop(); this.audio.setMuffle(0); this.audio.setSlowmo(0); this.audio.stopLoops(); this.audio.setMusic('menu');
     this.player.rig.visible = false; this.timeScale = 1; const f = this.gfx.fx; f.uDamage.value = f.uLow.value = f.uFocus.value = f.uShield.value = f.uFlash.value = 0; f.uFade.value = 0;
     this.enemies.clear(); this.projectiles.reset(); this.director.reset(); this.ui.bossBar(false); this.ui.show('menu'); this.menuT = 0;
     this.gfx.camera.fov = 60; this.gfx.camera.updateProjectionMatrix();
   }
   onPlayerDeath() {
+    if (this.mp) { this.mp.onLocalDeath(); return; }
     this.state = 'dead'; this.deadT = 0; this.sdk.gameplayStop(); this.audio.setMuffle(0.8); this.audio.intensity = 0;
     this.input.enabled = false;
     setTimeout(() => { if (this.state === 'dead') { this.input.unlock(); this.ui.death(this, !this.stats.revived); } }, 1500);
@@ -232,6 +218,38 @@ export class Game {
     this.state = 'playing'; this.ui.show('hud'); this.ui.hudAll(p); this.input.enabled = true; this.input.lock(); this.sdk.gameplayStart(); this.audio.setMuffle(0); this.last = performance.now();
     return true;
   }
+  // ---------- multiplayer lifecycle (driven by mp/session.js) ----------
+  mpLoad(match, def) {
+    this.mp = match; this.diff = MP_DIFF; this.mpPaused = false;
+    this.loadLevel(def);
+    this.stats = this.newStats(); this.player.reset(); this.player.baseFov = this.settings.fov; this.player.rig.visible = false; this.player.dead = true;
+    if (this.state !== 'playing') { this.state = 'mpwait'; this.menuT = 0; }
+  }
+  mpBegin(match) {
+    this.audio.init(); this.audio.resume(); this.timeScale = 1; this.slowT = 0; this.fadeIn = 1; this.gfx.fx.uFade.value = 1;
+    this.state = 'playing'; this.ui.show('hud'); this.ui.mpHud(true, match); this.ui.hudAll(this.player); this.ui.bossBar(false);
+    this.ui.banner(match.mode.name, (this.level.def.name || '') + ' · RANKED');
+    this.audio.setMusic('combat'); this.audio.intensity = 0.4;
+    this.input.enabled = true; this.input.lock(); this.sdk.gameplayStart();
+    this.gfx.renderer.compile(this.gfx.scene, this.gfx.camera);
+  }
+  mpSpawn(sp) {
+    const p = this.player; p.reset(); p.place(sp.x, sp.z, sp.yaw); p.invuln = 1.5; p.rig.visible = true; p.pitch = 0;
+    this.ui.hudAll(p); this.fx.ring(sp.x, 0.2, sp.z, 0.4, 3.2, [0.35, 0.8, 1], 0.4, 2); this.audio.play('shield_up', { vol: 0.4, reverb: 0.2 });
+  }
+  mpEnding(match) { this.slowT = 0; this.ui.mpEndBanner(match); this.audio.play('levelup', { vol: 0.7 }); }
+  mpEnd(match, res) {
+    if (this.mp !== match) return;
+    this.state = 'mpresults'; this.mpPaused = false; this.input.enabled = false; this.input.unlock(); this.sdk.gameplayStop(); this.audio.setMuffle(0); this.audio.stopLoops(); this.audio.setMusic('menu');
+    this.player.rig.visible = false; this.ui.mpHud(false); this.ui.mpResults(this, res); if (res.win) this.sdk.happytime();
+  }
+  // leave the finished / abandoned match and go back to the multiplayer screen (or straight into a new search)
+  mpExit(again) {
+    const m = this.mp; this.mp = null; if (m) { m.forfeit(); m.leave(); } this.net.matchClosed();
+    this.toMenu();
+    if (again) this.net.find(again); else this.ui.show('mp');
+  }
+
   showAd(type) { return this.sdk.ad(type, { onStart: () => { this.audio.adMuted = true; this.audio.applyVol(); }, onEnd: () => { this.audio.adMuted = false; this.audio.applyVol(); this.last = performance.now(); } }); }
 
   completeMission() {
@@ -241,8 +259,8 @@ export class Game {
   finishRun(win) {
     const s = this.stats, d = this.save.data, m = this.mission; this.input.enabled = false; this.input.unlock();
     const acc = s.shots ? Math.min(1, s.hits / s.shots) : 0;
-    const res = { win, onslaught: this.onslaught, name: m.name, kills: s.kills, acc, time: s.time, maxCombo: s.maxCombo, wave: this.director.wave, bonus: 0, stars: 0, newBest: false };
-    if (win && !this.onslaught) {
+    const res = { win, name: m.name, kills: s.kills, acc, time: s.time, maxCombo: s.maxCombo, wave: this.director.wave, bonus: 0, stars: 0, newBest: false };
+    if (win) {
       const timeBonus = Math.max(0, Math.round(2000 - s.time * 4)), accBonus = Math.round(acc * 1500), flawless = s.revived ? 0 : 500;
       res.bonus = timeBonus + accBonus + flawless; s.score += res.bonus; res.timeBonus = timeBonus; res.accBonus = accBonus; res.flawless = flawless;
       res.stars = s.score >= m.par ? 3 : s.score >= m.par * 0.6 ? 2 : 1;
@@ -251,7 +269,6 @@ export class Game {
       s.credits += Math.round(m.reward * this.diff.credits * (prev.stars ? 0.5 : 1));
       if (this.missionIndex + 1 >= d.unlocked) d.unlocked = Math.min(MISSIONS.length, this.missionIndex + 2);
     }
-    if (this.onslaught) { res.newBest = s.score > d.onslaught.score; d.onslaught.score = Math.max(d.onslaught.score, s.score); d.onslaught.wave = Math.max(d.onslaught.wave, this.director.wave - (win ? 0 : 1)); }
     res.score = Math.round(s.score); res.credits = Math.round(s.credits); res.xp = Math.round(s.score / 8);
     const before = rankFor(d.xp).lvl; d.credits += res.credits; d.xp += res.xp; res.rankUp = rankFor(d.xp).lvl > before;
     d.totals.kills += s.kills; d.totals.time += s.time; d.totals.shots += s.shots; d.totals.hits += s.hits;
@@ -282,7 +299,7 @@ export class Game {
       if (e.type === 'heavy') { this.spawnPickup('ammo', e.pos.x + 0.6, e.pos.z); kind = 'health'; }
       if (kind) this.spawnPickup(kind, e.pos.x, e.pos.z);
     } else { this.sdk.happytime(); this.slowT = 1.3; }
-    if (this.director.phase && !this.director.queue.length && this.enemies.alive() === 0 && (this.director.phase.type === 'eliminate' || this.director.phase.type === 'onslaught')) this.slowT = Math.max(this.slowT, 0.9);
+    if (this.director.phase && !this.director.queue.length && this.enemies.alive() === 0 && this.director.phase.type === 'eliminate') this.slowT = Math.max(this.slowT, 0.9);
     this.ui.hudScore(s);
   }
   onPlayerShot() { this.audio.intensity = Math.min(1, this.audio.intensity + 0.012); }
@@ -367,19 +384,19 @@ export class Game {
 
   // ---------- frame ----------
   frame(now) {
-    let rdt = Math.min(0.05, (now - this.last) / 1000); this.last = now; if (rdt <= 0) rdt = 0.001; this.realDt = rdt;
+    const rawDt = Math.min(0.5, Math.max(0, (now - this.last) / 1000)); let rdt = Math.min(0.05, rawDt); this.last = now; if (rdt <= 0) rdt = 0.001; this.realDt = rdt;
     const gfx = this.gfx, f = gfx.fx, p = this.player;
     this.fpsAvg = this.fpsAvg * 0.95 + (1 / rdt) * 0.05;
     let dt = rdt;
     if (this.state === 'playing' || this.state === 'ending' || this.state === 'dead') {
       // time scale: focus + cinematic slow-mo
       this.slowT = Math.max(0, this.slowT - rdt);
-      const target = this.state === 'dead' ? 0.35 : this.slowT > 0 ? 0.25 : p.focusOn ? 0.38 : 1; this.timeScale = damp(this.timeScale, target, 10, rdt);
+      const target = this.mp ? 1 : this.state === 'dead' ? 0.35 : this.slowT > 0 ? 0.25 : p.focusOn ? 0.38 : 1; this.timeScale = damp(this.timeScale, target, 10, rdt);
       dt = rdt * this.timeScale; this.time += dt;
       const pdt = p.focusOn ? rdt * Math.min(1, this.timeScale * 1.75) : dt;
       if (this.state !== 'dead') this.stats.time += rdt;
       if (this.input.hit('pause') && this.state === 'playing') { this.pause(); this.input.endFrame(); return; }
-      p.update(pdt, this.state === 'playing' ? this.input : this._noInput || (this._noInput = { is: () => false, hit: () => false, dx: 0, dy: 0, wheel: 0, slot: 0, stick: { x: 0, y: 0 }, sens: 1 }));
+      p.update(pdt, this.state === 'playing' && !this.mpPaused ? this.input : this._noInput || (this._noInput = { is: () => false, hit: () => false, dx: 0, dy: 0, wheel: 0, slot: 0, stick: { x: 0, y: 0 }, sens: 1 }));
       this.enemies.update(dt, gfx.camera); this.projectiles.update(dt); this.director.update(dt); this.updatePickups(dt);
       for (const o of this.objectives) o.update(dt);
       const s = this.stats; if (s.comboT > 0) { s.comboT -= dt; if (s.comboT <= 0) { s.combo = 1; this.ui.hudScore(s); } } s.multiT -= dt;
@@ -402,17 +419,18 @@ export class Game {
       this.audio.setListener(gfx.camera);
     } else {
       // menu / paused / results : slow orbit camera over the base (menu) or frozen frame
-      if (this.state === 'menu' || this.state === 'results' || this.state === 'loading') {
+      if (this.state === 'menu' || this.state === 'results' || this.state === 'loading' || this.state === 'mpwait' || this.state === 'mpresults') {
         this.menuT += rdt; const t = this.menuT * 0.035 + 0.6, cam = gfx.camera, R = 30;
-        if (this.state !== 'results') { cam.position.set(Math.cos(t) * R, 5.5 + Math.sin(t * 1.7) * 1.6, Math.sin(t) * R); cam.lookAt(Math.cos(t + 1.3) * 10, 3.2, Math.sin(t + 1.3) * 10); if (cam.fov !== 55) { cam.fov = 55; cam.updateProjectionMatrix(); } }
+        if (this.state !== 'results' && this.state !== 'mpresults') { cam.position.set(Math.cos(t) * R, 5.5 + Math.sin(t * 1.7) * 1.6, Math.sin(t) * R); cam.lookAt(Math.cos(t + 1.3) * 10, 3.2, Math.sin(t + 1.3) * 10); if (cam.fov !== 55) { cam.fov = 55; cam.updateProjectionMatrix(); } }
         this.time += rdt * 0.5; this.level.update(this.time); this.fx.update(rdt * 0.5, cam);
         f.uFocus.value = 0; f.uLow.value = damp(f.uLow.value, 0, 4, rdt); f.uDamage.value = 0;
       }
       dt = 0;
     }
+    if (this.net) this.net.tick(rawDt);
     this.input.endFrame();
     f.uGrain.value = 0.035; f.uVignette.value = this.state === 'menu' ? 0.75 : 0.55;
-    gfx.render(dt, rdt);
+    if (!this.noRender) gfx.render(dt, rdt);
     // dynamic resolution
     this.dynT += rdt;
     if (this.dynT > 2.5 && this.state === 'playing' && !this.noDrs) { this.dynT = 0; const q = gfx.q; if (this.fpsAvg < 42 && gfx.dyn > 0.55) { gfx.dyn = Math.max(0.55, gfx.dyn - 0.12); this.applyDyn(); } else if (this.fpsAvg > 58.5 && gfx.dyn < 1 && this.settings.quality === 'auto') { gfx.dyn = Math.min(1, gfx.dyn + 0.06); this.applyDyn(); } }

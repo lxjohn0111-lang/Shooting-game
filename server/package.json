@@ -1,0 +1,11 @@
+{
+  "name": "vanta-protocol-relay",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Multiplayer relay for VANTA PROTOCOL: named rooms with per-player presence (latest-state-wins)",
+  "main": "relay.js",
+  "type": "commonjs",
+  "scripts": { "start": "node relay.js" },
+  "engines": { "node": ">=18" },
+  "dependencies": { "ws": "8.18.0" }
+}

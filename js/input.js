@@ -2,7 +2,7 @@
 export const DEFAULT_BINDS = {
   forward: ['KeyW', 'ArrowUp'], back: ['KeyS', 'ArrowDown'], left: ['KeyA', 'ArrowLeft'], right: ['KeyD', 'ArrowRight'],
   jump: ['Space'], sprint: ['ShiftLeft', 'ShiftRight'], crouch: ['KeyC', 'ControlLeft'], reload: ['KeyR'], interact: ['KeyE'],
-  grenade: ['KeyG'], melee: ['KeyF', 'KeyV'], focus: ['KeyQ'], fire: ['Mouse0'], ads: ['Mouse2'], pause: ['KeyP', 'Escape'], next: ['KeyX'],
+  grenade: ['KeyG'], melee: ['KeyF', 'KeyV'], focus: ['KeyQ'], fire: ['Mouse0'], ads: ['Mouse2'], pause: ['KeyP', 'Escape'], next: ['KeyX'], score: ['Tab'],
 };
 
 export class Input {

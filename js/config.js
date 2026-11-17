@@ -95,7 +95,20 @@ export const MISSIONS = [
   },
 ];
 
-export const ONSLAUGHT = { id: 'onslaught', name: 'ONSLAUGHT', sub: 'Endless Survival', themes: ['yard', 'refinery', 'foundry'], skies: ['golden', 'dusk', 'storm', 'dawn', 'ember', 'eclipse'] };
+// ---------------------------------------------------------------- multiplayer
+// WebSocket relay used outside claude.ai (e.g. on CrazyGames). Deploy server/relay.js and put its wss:// URL here.
+// Leave empty to run multiplayer offline (every seat is filled with AI after the search window).
+export const MP_SERVER_URL = '';
+export const MP_SEARCH_SECONDS = 30;
+export const MP_LOADOUT = ['pistol', 'rifle', 'smg', 'shotgun', 'marksman'];
+export const MP_MODES = {
+  dm: { id: 'dm', name: 'DEATHMATCH', short: 'DM', slots: 8, teams: 0, scoreLimit: 25, time: 480, respawn: 3.5, desc: 'Free-for-all. Every operative for themselves. First to 25 eliminations.' },
+  dom: { id: 'dom', name: 'DOMINATION', short: 'DOM', slots: 10, teams: 2, scoreLimit: 250, time: 600, respawn: 5, desc: 'Two squads of five fight over points A, B and C. Held points score every two seconds. First to 250.' },
+};
+export const TEAMS = [{ name: 'AEGIS', color: '#5fb8ff', tint: [0.55, 0.85, 1.35] }, { name: 'SPECTRE', color: '#ff8a3d', tint: [1.4, 0.72, 0.42] }];
+export const MP_THEMES = ['yard', 'refinery', 'foundry'];
+export const MP_SKIES = ['golden', 'dusk', 'storm', 'dawn', 'ember', 'eclipse'];
+export const MP_MAP_NAMES = { yard: ['CONTAINER YARD', 'DRYDOCK 9', 'LOADING BAY'], refinery: ['CRACKER PLANT', 'TANK ROW', 'PIPELINE'], foundry: ['SMELTER', 'CASTING HALL', 'SLAG PITS'] };
 
 export const RANKS = ['RECRUIT', 'OPERATIVE', 'SPECIALIST', 'VANGUARD', 'SENTINEL-BREAKER', 'SPECTRE', 'WARDEN', 'PROTOCOL ZERO'];
 export const rankFor = (xp) => { let lvl = 1, need = 1500; while (xp >= need) { xp -= need; lvl++; need = Math.round(need * 1.18); } return { lvl, xp, need, name: RANKS[Math.min(RANKS.length - 1, ((lvl - 1) / 4) | 0)] }; };
