@@ -92,8 +92,10 @@ For local testing the relay can also serve the game: `PORT=8765 STATIC=.. node s
 
 ## Publishing on CrazyGames
 
-1. Deploy the multiplayer relay and set `MP_SERVER_URL` (see above).
-2. Zip the game files (`index.html`, `css/`, `js/`) — not the `server/` folder.
+Everything the portal needs is in [`crazygames/`](crazygames/README.md): the upload zip, the three covers, the preview video and the store listing text.
+
+1. Deploy the multiplayer relay and set `MP_SERVER_URL` (see above), or ship without it and multiplayer runs against AI.
+2. Rebuild the zip with `./tools/build-crazygames.sh`.
 3. Upload the zip in the [CrazyGames Developer Portal](https://developer.crazygames.com) as an HTML5 game.
 4. Use the portal's QA tool to verify the SDK events below.
 
@@ -107,7 +109,7 @@ For local testing the relay can also serve the game: `PORT=8765 STATIC=.. node s
 | `game.happytime()` | Mission complete and boss kill |
 | `ad.requestAd('midgame')` | Between missions and on retry |
 | `ad.requestAd('rewarded')` | Revive after death, double credits on the results screen |
-| `data.getItem()` / `setItem()` | Save data (falls back to `localStorage`) |
+| `data.getItem()` / `setItem()` | All progress, synced to the player's account when logged in; older `localStorage` saves are migrated once (outside CrazyGames the game uses `localStorage`) |
 | `game.settings.muteAudio` + settings listener | Platform mute |
 | `user.systemInfo` | Mobile detection |
 

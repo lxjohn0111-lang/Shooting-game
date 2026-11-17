@@ -1,6 +1,6 @@
 // CrazyGames SDK v3 wrapper. Every call is guarded so the game runs anywhere (local file server, other hosts, ad-blocked).
 export class SDK {
-  constructor() { this.sdk = null; this.ok = false; this.env = 'none'; this.playing = false; this.loading = false; this.adPlaying = false; this.onMute = null; this.user = null; this.isMobile = false; }
+  constructor() { this.sdk = null; this.ok = false; this.env = 'none'; this.playing = false; this.loading = false; this.adPlaying = false; this.onMute = null; this.user = null; this.isMobile = false; this.onAuth = null; }
   async init() {
     try {
       const cg = window.CrazyGames && window.CrazyGames.SDK;
@@ -9,7 +9,7 @@ export class SDK {
       this.sdk = cg; this.env = cg.environment || 'unknown'; this.ok = this.env !== 'disabled';
       try { const si = cg.user && cg.user.systemInfo; if (si && si.device && si.device.type) this.isMobile = si.device.type !== 'desktop'; } catch (e) { }
       try { if (cg.game.addSettingsChangeListener) cg.game.addSettingsChangeListener((s) => { if (this.onMute) this.onMute(!!s.muteAudio); }); } catch (e) { }
-      try { if (cg.user && cg.user.isUserAccountAvailable) { this.user = await cg.user.getUser(); cg.user.addAuthListener && cg.user.addAuthListener((u) => { this.user = u; }); } } catch (e) { }
+      try { if (cg.user && cg.user.isUserAccountAvailable) { this.user = await cg.user.getUser(); cg.user.addAuthListener && cg.user.addAuthListener((u) => { const was = this.user && this.user.username; this.user = u; if (this.onAuth && (u && u.username) !== was) this.onAuth(u); }); } } catch (e) { }
     } catch (e) { console.info('[sdk] unavailable:', e && e.message); this.ok = false; }
   }
   get muted() { try { return !!(this.ok && this.sdk.game.settings && this.sdk.game.settings.muteAudio); } catch (e) { return false; } }
@@ -34,7 +34,24 @@ export class SDK {
       } catch (e) { fin(false); }
     });
   }
-  // persistent data (cloud-synced for logged-in CrazyGames users, localStorage otherwise)
-  getItem(k) { try { if (this.ok && this.sdk.data) { const v = this.sdk.data.getItem(k); if (v !== null && v !== undefined) return v; } } catch (e) { } try { return localStorage.getItem(k); } catch (e) { return null; } }
-  setItem(k, v) { try { if (this.ok && this.sdk.data) this.sdk.data.setItem(k, v); } catch (e) { } try { localStorage.setItem(k, v); } catch (e) { } }
+  // ---- persistent data ----
+  // On CrazyGames all progress goes through the SDK Data module (localStorage-like API, string values). It is preloaded
+  // by init(), saved to the player's account when logged in (synced across devices) and kept locally for guests.
+  // Without the SDK (local testing, other hosts) the game falls back to the browser's localStorage.
+  get dataOk() { try { return !!(this.ok && this.sdk && this.sdk.data && typeof this.sdk.data.getItem === 'function'); } catch (e) { return false; } }
+  get storage() { return this.dataOk ? 'crazygames' : 'browser'; }
+  getItem(k) {
+    if (this.dataOk) { try { const v = this.sdk.data.getItem(k); return v === undefined ? null : v; } catch (e) { return null; } }
+    try { return localStorage.getItem(k); } catch (e) { return null; }
+  }
+  setItem(k, v) {
+    if (this.dataOk) { try { this.sdk.data.setItem(k, String(v)); } catch (e) { console.warn('[sdk] data.setItem failed', e); } return; }
+    try { localStorage.setItem(k, v); } catch (e) { }
+  }
+  removeItem(k) {
+    if (this.dataOk) { try { this.sdk.data.removeItem(k); } catch (e) { } return; }
+    try { localStorage.removeItem(k); } catch (e) { }
+  }
+  // a save written by an older build straight to localStorage (before the Data module was used)
+  takeLegacy(k) { if (!this.dataOk) return null; try { const v = localStorage.getItem(k); if (v) localStorage.removeItem(k); return v; } catch (e) { return null; } }
 }

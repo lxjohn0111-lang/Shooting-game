@@ -32,7 +32,16 @@ import { MISSIONS } from './config.js';
     // first-mission control hint
     const origStart = game.startMission.bind(game);
     game.startMission = (i, o) => { origStart(i, o); if (!save.data.seenIntro && !game.input.touch) { setTimeout(() => ui.hint('<kbd>WASD</kbd> move · <kbd>SHIFT</kbd> sprint · <kbd>C</kbd> crouch / slide · <kbd>RMB</kbd> aim · <kbd>R</kbd> reload · <kbd>G</kbd> frag · <kbd>F</kbd> melee · <kbd>Q</kbd> focus', 12), 1500); save.data.seenIntro = true; save.save(); } };
-    // dev / QA hooks:  ?m=1..6 autostart mission, ?mp=dm|dom find a multiplayer match, ?god=1
+    // progress follows the CrazyGames account: reload it when the player logs in
+    sdk.onAuth = () => {
+      const apply = () => { const r = save.reloadAfterLogin(); game.input.sens = save.data.settings.sens; if (game.net) game.net.setLobby({ n: game.net.name, m: Math.round(game.net.data.mmr) }); if (['menu', 'missions', 'armory', 'mp'].includes(ui.cur)) ui.show(ui.cur); ui.toast(r === 'account' ? 'PROGRESS LOADED FROM YOUR ACCOUNT' : 'PROGRESS SAVED TO YOUR ACCOUNT', 'good', 2.5); };
+      // never swap the save under a running mission or match
+      const wait = () => { if (game.state === 'menu' || game.state === 'results' || game.state === 'mpresults') setTimeout(apply, 600); else setTimeout(wait, 1000); };
+      wait();
+    };
+    // dev / QA hooks (disabled on CrazyGames):  ?m=1..6 autostart mission, ?mp=dm|dom find a multiplayer match, ?god=1
+    const dev = sdk.env !== 'crazygames';
+    if (!dev) { for (const k of ['god', 'credits', 'm', 'mp', 'norender']) q.delete(k); }
     if (q.get('god')) game.godMode = true;
     if (q.get('nodrs')) game.noDrs = true;
     if (q.get('norender')) game.noRender = true;
