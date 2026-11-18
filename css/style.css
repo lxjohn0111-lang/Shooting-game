@@ -390,3 +390,117 @@ body.touch #radar{width:92px;height:92px}
 .ladder .cur{background:linear-gradient(180deg,color-mix(in srgb,var(--tc) 22%,transparent),rgba(18,23,30,.82))}
 .ladder .cur span{color:#fff}
 @media (max-width:900px),(max-height:520px){.ladder{grid-template-columns:repeat(4,1fr)}}
+
+
+/* ===================================================================== COMPACT LAYOUTS
+   Short screens (phones held sideways, small windows): everything on one screen, the main action always visible.
+   Narrow screens (phones held upright): one column. */
+.rotate-note{display:none;color:var(--amber);letter-spacing:.2em;font-size:.9em}
+@media (orientation:portrait){ body.touch .rotate-note{display:block} }
+
+@media (max-height:560px){
+  #ui{font-size:clamp(10px,2.9vh,13px)}
+  h2{font-size:1.5em}
+  .btn{min-width:12em;padding:.5em .9em}
+  .btn b{font-size:1.1em}
+  /* main menu */
+  .menu-left{left:max(16px,4vw);gap:.5em;top:50%}
+  .logo.big .logo-a{font-size:3.4em}.logo.big .logo-b{font-size:1.3em}
+  .tagline,.menu-foot{display:none}
+  .mainnav{gap:.3em}
+  .mainnav .btn{padding:.38em .9em;min-width:16em}
+  .mainnav .btn small{font-size:.75em}
+  .menu-right{top:max(8px,2vh);right:max(12px,3vw)}
+  .profile{min-width:15em;padding:.45em .7em;gap:.6em}.profile-row{gap:1em}.rank-badge{font-size:1.1em}
+  /* panels */
+  .panelscreen{padding:max(8px,1.6vh) max(16px,3vw);gap:1vh}
+  .phead{padding-bottom:.6vh}.phead h2{font-size:1.4em}.back{padding:.35em .8em;font-size:.95em}
+  .pbody{overflow:hidden}
+  .pbody.split{grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:2vw;overflow:hidden}
+  .mlist,.wlist{overflow:auto;gap:.35em}
+  .mcard,.wcard{padding:.45em .8em;gap:.7em}
+  .mnum{font-size:1.4em}.mname{font-size:1.05em}.msub{font-size:.75em}
+  .mdetail,.wdetail{padding:1.2vh 1.6vw;gap:.45em;overflow:auto}
+  h3{font-size:1.5em}
+  .mdetail p,.wdetail p{font-size:.9em;line-height:1.4;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+  .md-stars{font-size:1.1em}.md-row{padding-top:.3em}
+  .diff button{padding:.4em}
+  #btnDeploy,#btnBuy{position:sticky;bottom:0;flex:none}
+  .statbars{gap:.25em .8em}.uprow{padding:.3em .6em}
+  .perks{padding-top:.6vh}.perks h4{margin-bottom:.35em}
+  .perkrow{grid-template-columns:repeat(5,1fr);gap:.35em}.perk{padding:.35em .5em;gap:.2em}.perk small{display:none}
+  .form{display:grid;grid-template-columns:1fr 1fr;gap:.55em 2.2em;padding-top:.4em}
+  .form .btn{margin-top:0}
+  .help{grid-template-columns:1fr 1fr;gap:2vw;padding-top:.4em;overflow:auto}
+  .keys{gap:.25em}.tips{gap:.45em;font-size:.88em}
+  /* overlays */
+  .card{padding:.9em 1.2em;gap:.4em;max-height:calc(100% - 12px)}
+  .card .btn{padding:.45em .8em}
+  .res-grid{margin:.2em 0;gap:.1em 1.4em}.res-grid div{padding:.15em 0}
+  .res-earn div{padding:.35em .3em}.res-earn b{font-size:1.4em}
+  .md-stars.big{font-size:1.8em}
+  /* multiplayer */
+  .mpbody{grid-template-columns:minmax(0,.9fr) minmax(0,1.1fr)}
+  .mp-left,.mp-right{gap:.55em;overflow:hidden}
+  .rankcard{padding:.6em .8em;gap:.8em}
+  .emblem{width:3.5em;height:3.9em}.emblem span{font-size:1.1em}.emblem::after{inset:9px 13px auto;height:2px}
+  .rank-tier{font-size:1.3em}.mmr{font-size:.8em}.rank-next{font-size:.72em}
+  .mp-stats{grid-template-columns:repeat(4,1fr);gap:.35em}.mp-stats div{padding:.35em .5em}.mp-stats b{font-size:1.05em}.mp-stats span{font-size:.65em}
+  .callsign{font-size:.8em;gap:.3em}.callsign input{padding:.4em .7em;font-size:1.15em}
+  .mp-hist-h,.mp-hist,.ladder-h,.ladder,.mode-art,.mode-art.dom,.mode-art.dm,.mode-desc{display:none}
+  .modes{grid-template-columns:1fr 1fr;gap:.5em}
+  .mode{padding:.65em .8em;gap:.4em}.mode-name{font-size:1.15em;letter-spacing:.12em}
+  .chips span{font-size:.68em}
+  .net{margin-top:auto;font-size:.78em}
+  #btnFind{flex:none}
+  .mmcard{gap:.35em}.mm-clock b{font-size:2.2em}.mm-sub{font-size:.82em}
+  .mm-slots{grid-template-columns:repeat(3,1fr);gap:.25em;margin:.2em 0}.mm-slot{padding:.25em .5em;font-size:.82em}
+  .mr-rank{padding:.5em .8em}.mr-table{max-height:30vh}
+  .sb-row,.mr-row{padding:.18em .4em}
+  #scoreboard{padding:.7em .9em;max-height:92vh;overflow:auto}
+  #banner{top:14vh}.b-title{font-size:2em}
+}
+
+@media (max-width:700px){
+  #ui{font-size:clamp(10px,3.1vw,13px)}
+  /* main menu stacks: logo, buttons, profile */
+  .menu-left{left:max(16px,6vw);right:max(16px,6vw);top:auto;bottom:auto;transform:none;position:absolute;inset:max(14px,4vh) max(16px,6vw) auto}
+  .logo.big .logo-a{font-size:15vw}.logo.big .logo-b{font-size:5.6vw}
+  .tagline{font-size:.75em;letter-spacing:.3em;margin-bottom:.4em}
+  .mainnav .btn{min-width:0;width:100%}
+  .menu-right{top:auto;bottom:max(14px,3vh);left:max(16px,6vw);right:max(16px,6vw)}.profile{min-width:0}
+  .menu-foot{display:none}
+  .panelscreen{padding:max(10px,2vh) max(16px,4vw)}
+  .pbody.split,.mpbody{grid-template-columns:1fr;overflow:auto}
+  .mlist,.wlist{overflow:visible}
+  .mdetail p,.wdetail p{-webkit-line-clamp:unset;display:block}
+  .perkrow{grid-template-columns:repeat(2,1fr)}
+  .form{grid-template-columns:1fr}
+  .help{grid-template-columns:1fr}
+  .mp-hist-h,.mp-hist,.ladder-h,.ladder,.mode-art,.mode-art.dom,.mode-art.dm{display:none}
+  .modes{grid-template-columns:1fr}
+  .mode-desc{min-height:0;font-size:.85em}
+  .mp-stats{grid-template-columns:repeat(2,1fr)}
+  .mp-left,.mp-right{overflow:visible}
+  #btnFind,#btnDeploy,#btnBuy{position:sticky;bottom:0;z-index:2}
+  .mm-slots{grid-template-columns:repeat(2,1fr)}
+  .res-btns{grid-template-columns:1fr}
+}
+
+/* touch devices: the help screen explains the on-screen controls */
+.keys-touch{display:none}
+body.touch .keys{display:none}
+body.touch .keys-touch{display:flex;flex-direction:column;gap:.45em}
+.keys-touch div{display:flex;align-items:center;gap:.6em}.keys-touch span{margin-left:auto;color:var(--dim);text-align:right}
+.keys-touch b{display:inline-grid;place-items:center;min-width:3.6em;padding:.2em .5em;border:1px solid rgba(255,255,255,.4);border-radius:1em;font-size:.8em;letter-spacing:.08em}
+
+@media (max-width:700px){
+  .logo.big .logo-b{letter-spacing:.55em;font-size:5.2vw}
+  .back{white-space:nowrap;padding:.35em .7em}
+  .phead h2{font-size:1.35em;letter-spacing:.1em}
+  /* tall screens: let the whole panel scroll naturally, keep the main action reachable */
+  .panelscreen{overflow-y:auto}
+  .pbody,.pbody.split,.mpbody{overflow:visible;flex:none}
+}
+/* touch buttons that only make sense in one mode */
+#hud:not(.mp) ~ #touch .t-score, #hud.mp ~ #touch .t-focus{display:none}

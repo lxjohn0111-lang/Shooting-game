@@ -37,7 +37,12 @@ export function rateMatch(mp, oppAvg, score, perf = 0) {
 }
 
 // how strong AI fill-ins should be for a lobby with this average rating
-export const botSkillFor = (mmr) => clamp(0.35 + (mmr - 800) / 1000, 0.3, 0.95);
+// rating -> AI skill (0..1). Iron/Bronze/Silver bots are clumsy; they only get sharp from Platinum up.
+const SKILL_CURVE = [[0, 0.05], [800, 0.1], [950, 0.17], [1100, 0.3], [1250, 0.46], [1400, 0.62], [1550, 0.78], [1800, 0.9]];
+export const botSkillFor = (mmr) => {
+  for (let i = 1; i < SKILL_CURVE.length; i++) { const [m1, s1] = SKILL_CURVE[i], [m0, s0] = SKILL_CURVE[i - 1]; if (mmr < m1) return s0 + (s1 - s0) * clamp((mmr - m0) / (m1 - m0), 0, 1); }
+  return SKILL_CURVE[SKILL_CURVE.length - 1][1];
+};
 
 const ADJ = ['Silent', 'Iron', 'Rapid', 'Ghost', 'Night', 'Steel', 'Red', 'Cold', 'Vector', 'Echo', 'Storm', 'Ash', 'Nova', 'Hollow', 'Grim', 'Lucky'];
 const NOUN = ['Viper', 'Falcon', 'Rook', 'Warden', 'Jackal', 'Lancer', 'Mantis', 'Raven', 'Saber', 'Hound', 'Comet', 'Wolf', 'Reaper', 'Kite', 'Bishop', 'Cobra'];

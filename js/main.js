@@ -27,6 +27,11 @@ import { MISSIONS } from './config.js';
     game.input.onFirstGesture = () => { game.audio.init(); game.audio.muted = sdk.muted; game.audio.applyVol(); game.audio.resume(); if (game.state === 'menu') game.audio.setMusic('menu'); };
     addEventListener('pointerdown', () => { if (!game.audio.ctx) { game.audio.init(); game.audio.applyVol(); if (game.state === 'menu') game.audio.setMusic('menu'); } game.audio.resume(); }, { passive: true });
     if (game.isMobile || 'ontouchstart' in window && navigator.maxTouchPoints > 1 && !matchMedia('(pointer:fine)').matches) game.input.setupTouch(document.getElementById('touch'));
+    // phones: the game is played in landscape; holding it upright pauses and asks to rotate
+    const portrait = matchMedia('(orientation: portrait)');
+    const checkPortrait = () => { if (game.input.touch && portrait.matches && game.state === 'playing' && !game.mpPaused) game.pause(); };
+    try { portrait.addEventListener('change', checkPortrait); } catch (e) { }
+    setInterval(checkPortrait, 1000);
     sdk.loadingStop();
     ui.show('menu');
     // first-mission control hint
@@ -48,6 +53,7 @@ import { MISSIONS } from './config.js';
     if (q.get('credits')) { save.data.credits = +q.get('credits'); }
     if (q.get('m')) { save.data.unlocked = MISSIONS.length; game.startMission(Math.max(0, Math.min(MISSIONS.length - 1, +q.get('m') - 1))); }
     else if (q.get('mp')) { if (q.get('mpname')) game.net.setName(q.get('mpname')); ui.mpMode = q.get('mp') === 'dom' ? 'dom' : 'dm'; game.net.find(ui.mpMode); }
+    else if (!q.get('menu')) game.startMission(0);   // the game opens straight into the first campaign mission
     window.READY = true;
   } catch (e) {
     console.error(e); fail('FAILED TO START: ' + (e && e.message ? e.message : e)); window.READY = true;

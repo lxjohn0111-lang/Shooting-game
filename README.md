@@ -8,11 +8,13 @@ Everything is generated at runtime: textures, models, sound effects and music. T
 
 ## Features
 
-- **Campaign** — 6 missions with varied objectives (eliminate, hold-the-zone uplinks, destroy cores, survive-and-extract, boss), 3-star ratings, three difficulties
+- **Campaign** — 6 missions with varied objectives (eliminate, hold-the-zone uplinks, destroy cores, survive-and-extract, boss), 3-star ratings; the game opens straight into the first mission
+- **Difficulty** — Easy, Normal or Hard, switchable any time in Settings (also on the mission screen)
 - **Ranked multiplayer** — real-time online matches on a random map every time
   - **Deathmatch**: 8-player free-for-all, first to 25 eliminations
   - **Domination**: 5 v 5, capture and hold points A, B and C, first to 250
   - matchmaking searches for up to 30 seconds, then fills every empty seat with AI operatives; players can also drop into a running match and take over an AI seat
+  - AI operatives carry a rating near the lobby's and play to it: clumsy in Iron to Silver, sharp only from Platinum up
   - rating (MMR) with 7 tiers and 3 divisions each, placement matches, match history
 - **7 weapons** — pistol, assault rifle, SMG, shotgun, scoped marksman rifle, grenade launcher, charge railgun; each with upgrades
 - **6 enemy types** — Wasp drones, Sentinel troopers, Skitter suicide crawlers, Lancer snipers, shielded Bulwark heavies, and the COLOSSUS siege walker boss with destructible heat cores
@@ -20,7 +22,7 @@ Everything is generated at runtime: textures, models, sound effects and music. T
 - **Progression** — credits, weapon purchases, upgrade tracks, operator augments, ranks; cloud-saved through the SDK
 - **Rendering** — HDR pipeline with PBR materials, GPU-baked procedural textures, soft sun shadows, SSAO, bloom, god rays, ACES tonemapping, volumetric light shafts, rain, lightning, six lighting presets
 - **Audio** — fully synthesized 3D sound effects, reverb, and adaptive music that follows combat intensity
-- **Platforms** — desktop (mouse + keyboard) and mobile (touch controls), four quality presets plus automatic dynamic resolution
+- **Platforms** — desktop (mouse + keyboard) and mobile (touch controls, phone-sized menus), four quality presets plus automatic dynamic resolution
 
 ## Controls
 
@@ -147,7 +149,7 @@ js/lib/           three.js r187 (MIT), bundled into one file
 
 ### QA URL parameters
 
-`?m=1`…`6` starts a mission directly, `?mp=dm|dom` starts a multiplayer search (`&mpserver=ws://…` relay, `&mpwait=N` search seconds, `&mptime=N` match length, `&mplimit=N` score limit, `&mpname=` callsign), `?god=1` disables damage, `?q=low|medium|high|ultra` forces a quality preset, `?credits=N` sets credits.
+`?menu=1` opens the main menu instead of the first mission, `?m=1`…`6` starts a mission directly, `?mp=dm|dom` starts a multiplayer search (`&mpserver=ws://…` relay, `&mpwait=N` search seconds, `&mptime=N` match length, `&mplimit=N` score limit, `&mpname=` callsign), `?god=1` disables damage, `?q=low|medium|high|ultra` forces a quality preset, `?credits=N` sets credits.
 
 ## Credits
 

@@ -66,14 +66,14 @@ export class BotBrain {
       let best = null, bs = 1e9; const ex = b.x, ey = b.y + 1.6, ez = b.z;
       for (const e of ents) {
         if (!e.alive || e.slot === this.slot || (m.mode.teams && e.team === this.team)) continue;
-        const d = Math.hypot(e.x - ex, e.z - ez); if (d > 70) continue;
+        const d = Math.hypot(e.x - ex, e.z - ez); if (d > 38 + this.skill * 34) continue;
         // field of view: things behind are noticed only when close or when they just shot
         const fwd = Math.cos(angleDelta(this.yaw, Math.atan2(-(e.x - ex), -(e.z - ez))));
-        if (fwd < -0.1 && d > 9 && !(e.firedAt && m.time - e.firedAt < 1)) continue;
+        if (fwd < 0.15 - this.skill * 0.25 && d > 6 + this.skill * 4 && !(e.firedAt && m.time - e.firedAt < 0.6 + this.skill)) continue;
         if (!L.los(ex, ey, ez, e.x, e.y + 1.2, e.z)) continue;
         const sc = d - (this.target && this.target.slot === e.slot ? 8 : 0); if (sc < bs) { bs = sc; best = e; }
       }
-      if (best && (!this.target || this.target.slot !== best.slot)) this.react = (0.55 - this.skill * 0.35) + rand(0.15);
+      if (best && (!this.target || this.target.slot !== best.slot)) this.react = (1.05 - this.skill * 0.75) + rand(0.3);
       this.target = best; if (best) { this.lastKnown = { x: best.x, z: best.z, t: m.time }; this.seen = m.time; }
     } else if (this.target) { const t = ents.find((e) => e.slot === this.target.slot); this.target = t && t.alive ? t : null; }
     const tg = this.target, wdef = WEAPONS[this.wpn], dom = m.mode.id === 'dom';
@@ -89,14 +89,14 @@ export class BotBrain {
       if (this.strafeT <= 0) { this.strafeT = rand(0.5, 1.4); if (Math.random() < 0.5) this.strafe *= -1; this.crouch = 0; }
       mx = _f.x * 0.85 - _f.z * this.strafe * 0.35; mz = _f.z * 0.85 + _f.x * this.strafe * 0.35; sp *= 0.8;
       const dx = tg.x - b.x, dz = tg.z - b.z, d = Math.hypot(dx, dz) || 1;
-      this.yaw += angleDelta(this.yaw, Math.atan2(-dx, -dz)) * Math.min(1, (5 + this.skill * 9) * dt);
+      this.yaw += angleDelta(this.yaw, Math.atan2(-dx, -dz)) * Math.min(1, (2.4 + this.skill * 9) * dt);
       this.pitch = damp(this.pitch, Math.atan2(tg.y + 1.2 - (b.y + 1.6), d), 8, dt);
     } else if (tg) {
       const dx = tg.x - b.x, dz = tg.z - b.z, d = Math.hypot(dx, dz) || 1, eng = ENGAGE[this.wpn];
       if (this.strafeT <= 0) { this.strafeT = rand(0.6, 1.8); if (Math.random() < 0.45) this.strafe *= -1; this.crouch = Math.random() < 0.25 && this.wpn !== 'shotgun' ? 1 : 0; }
       const fw = d > eng ? 0.85 : d < eng * 0.45 ? -0.6 : 0;
       mx = dx / d * fw - dz / d * this.strafe * 0.8; mz = dz / d * fw + dx / d * this.strafe * 0.8; sp *= this.crouch ? 0.45 : 0.75;
-      const want = Math.atan2(-dx, -dz); this.yaw += angleDelta(this.yaw, want) * Math.min(1, (5 + this.skill * 9) * dt);
+      const want = Math.atan2(-dx, -dz); this.yaw += angleDelta(this.yaw, want) * Math.min(1, (2.4 + this.skill * 9) * dt);
       this.pitch = damp(this.pitch, Math.atan2(tg.y + 1.2 - (b.y + 1.6), d), 8, dt);
     } else {
       this.crouch = 0;
@@ -122,23 +122,23 @@ export class BotBrain {
     if (this.burst <= 0) { this.burst = this.wpn === 'marksman' || this.wpn === 'shotgun' ? 1 : 3 + (Math.random() * 4 | 0); }
     this._shoot(tg, wdef);
     this.burst--; this.mag--;
-    this.cool = 60 / wdef.rpm * (this.wpn === 'marksman' ? 2.2 : 1.12) + (this.burst <= 0 ? rand(0.25, 0.7) * (1.3 - this.skill) : 0);
+    this.cool = 60 / wdef.rpm * (this.wpn === 'marksman' ? 2.2 : 1.12) + (this.burst <= 0 ? rand(0.4, 1.0) * (1.6 - this.skill) : 60 / wdef.rpm * (1 - this.skill) * 0.8);
     if (this.mag <= 0) this.reloadT = wdef.reload * 1.1;
   }
 
   _shoot(tg, wdef) {
     const m = this.m, b = this.body, d = Math.hypot(tg.x - b.x, tg.z - b.z), eng = ENGAGE[this.wpn];
     this.fs++; m.markFired(this.slot);
-    let p = 0.18 + this.skill * 0.5;
+    let p = 0.05 + this.skill * 0.6;
     p *= d < eng ? 1 : clamp(1 - (d - eng) / (eng * 1.6), 0.15, 1);
     p *= Math.hypot(tg.vx || 0, tg.vz || 0) > 3 ? 0.78 : 1;
     p *= m.time - this.seen < 0.6 ? 1 : 0.85;
     if (tg.crouch) p *= 0.85;
     const pellets = wdef.pellets || 1;
     let dmg = 0, crit = false;
-    const pp = pellets > 1 ? (d < 8 ? 0.8 : d < 16 ? 0.42 : 0.1) * (0.55 + this.skill * 0.45) : p;
+    const pp = pellets > 1 ? (d < 8 ? 0.7 : d < 16 ? 0.35 : 0.08) * (0.35 + this.skill * 0.65) : p;
     for (let i = 0; i < pellets; i++) if (Math.random() < pp) dmg += wdef.dmg;
-    if (dmg > 0 && pellets === 1 && Math.random() < 0.08 + this.skill * 0.14) { crit = true; dmg *= wdef.head; }
+    if (dmg > 0 && pellets === 1 && Math.random() < 0.02 + this.skill * 0.16) { crit = true; dmg *= wdef.head; }
     dmg *= d > wdef.range[0] ? clamp(1 - (d - wdef.range[0]) / (wdef.range[1] - wdef.range[0]) * 0.5, 0.5, 1) : 1;
     // tracer end point: on the target if it connected, a near miss otherwise
     const ty = tg.y + (crit ? 1.65 : 1.15) + (dmg > 0 ? 0 : rand(-0.6, 0.6)); const ox = dmg > 0 ? 0 : rand(-1.2, 1.2), oz = dmg > 0 ? 0 : rand(-1.2, 1.2);

@@ -88,6 +88,7 @@
   <section id="settings" class="screen panelscreen narrow">
     <header class="phead"><button class="back" id="settingsBack">&#8592; BACK</button><h2>SETTINGS</h2><span></span></header>
     <div class="pbody form">
+      <label>DIFFICULTY<select id="setDiff"><option value="recruit">Easy · Recruit</option><option value="veteran">Normal · Veteran</option><option value="elite">Hard · Elite</option></select></label>
       <label>GRAPHICS QUALITY<select id="setQuality"><option value="auto">Auto</option><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option><option value="ultra">Ultra</option></select></label>
       <label>MOUSE SENSITIVITY<span class="val" id="vSens"></span><input type="range" id="setSens" min="0.2" max="3" step="0.05"></label>
       <label>FIELD OF VIEW<span class="val" id="vFov"></span><input type="range" id="setFov" min="60" max="100" step="1"></label>
@@ -122,6 +123,22 @@
         <div><kbd>E</kbd><span>Interact</span></div>
         <div><kbd>TAB</kbd><span>Scoreboard (multiplayer)</span></div>
         <div><kbd>P</kbd> / <kbd>ESC</kbd><span>Pause</span></div>
+      </div>
+      <div class="keys-touch">
+        <div><b>LEFT STICK</b><span>Move · push all the way forward to sprint</span></div>
+        <div><b>DRAG</b><span>Swipe the right side of the screen to look</span></div>
+        <div><b>FIRE</b><span>Shoot (you can also drag on it to aim)</span></div>
+        <div><b>AIM</b><span>Aim down sights (tap to toggle)</span></div>
+        <div><b>JUMP</b><span>Jump</span></div>
+        <div><b>CRCH</b><span>Crouch (tap to toggle) · slide while sprinting</span></div>
+        <div><b>RLD</b><span>Reload</span></div>
+        <div><b>SWAP</b><span>Previous weapon</span></div>
+        <div><b>FRAG</b><span>Grenade</span></div>
+        <div><b>HIT</b><span>Melee</span></div>
+        <div><b>FOCUS</b><span>Neural Focus (campaign)</span></div>
+        <div><b>USE</b><span>Interact</span></div>
+        <div><b>TAB</b><span>Scoreboard (multiplayer)</span></div>
+        <div><b>II</b><span>Pause</span></div>
       </div>
       <ul class="tips">
         <li>Your <b>shield</b> recharges out of combat. Health only returns from pickups.</li>
@@ -247,6 +264,7 @@
   <section id="pause" class="screen overlay">
     <div class="card">
       <h2>PAUSED</h2>
+      <div class="rotate-note">Turn your device sideways to play</div>
       <button class="btn primary wide" id="btnResume"><b>RESUME</b></button>
       <button class="btn wide" id="btnPauseSettings"><b>SETTINGS</b></button>
       <button class="btn wide" id="btnRestart"><b>RESTART MISSION</b></button>

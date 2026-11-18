@@ -66,6 +66,7 @@ export class UI {
     range('setMaster', 'master', ['vMaster', (v) => Math.round(v * 100) + '%'], (v) => { g.audio.vol.master = v; g.audio.applyVol(); });
     range('setSfx', 'sfx', ['vSfx', (v) => Math.round(v * 100) + '%'], (v) => { g.audio.vol.sfx = v; g.audio.applyVol(); });
     range('setMusic', 'music', ['vMusic', (v) => Math.round(v * 100) + '%'], (v) => { g.audio.vol.music = v; g.audio.applyVol(); });
+    $('setDiff').onchange = (e) => { const d = g.save.data; d.difficulty = e.target.value; g.save.save(); if (!g.mp) g.diff = DIFFICULTY[d.difficulty]; };
     $('setQuality').onchange = (e) => { s.quality = e.target.value; g.gfx.dyn = 1; g.setQuality(s.quality); sv(); };
     $('setInvert').onchange = (e) => { s.invertY = e.target.checked; g.input.invertY = s.invertY; sv(); };
     $('setDmg').onchange = (e) => { s.dmgNumbers = e.target.checked; sv(); };
@@ -96,7 +97,7 @@ export class UI {
     $('mdObj').innerHTML = m.phases.map((p) => `<div>${OBJ_TEXT[p.type]}</div>`).join(''); $('mdBest').textContent = rec ? fmtNum(rec.best) : '—';
     const df = DIFFICULTY[d.difficulty]; $('mdReward').textContent = `${fmtNum(m.reward * df.credits * (rec ? 0.5 : 1))} CR${rec ? ' (replay)' : ''}`;
     const row = $('diffRow'); row.innerHTML = '';
-    for (const k in DIFFICULTY) { const b = document.createElement('button'); b.textContent = DIFFICULTY[k].name; b.className = k === d.difficulty ? 'sel' : ''; b.onclick = () => { d.difficulty = k; this.game.save.save(); this.game.audio.play('ui_click', { vol: 0.5, reverb: 0 }); this.refreshMissions(); }; row.appendChild(b); }
+    for (const k in DIFFICULTY) { const b = document.createElement('button'); b.textContent = DIFFICULTY[k].name; b.className = k === d.difficulty ? 'sel' : ''; b.onclick = () => { d.difficulty = k; this.game.save.save(); if (!this.game.mp) this.game.diff = DIFFICULTY[k]; this.game.audio.play('ui_click', { vol: 0.5, reverb: 0 }); this.refreshMissions(); }; row.appendChild(b); }
     $('diffDesc').textContent = df.desc;
   }
   refreshArmory() {
@@ -133,7 +134,7 @@ export class UI {
   }
   buyWeapon() { const g = this.game, d = g.save.data, w = WEAPONS[this.selWeapon]; if (d.weapons.includes(w.id) || d.credits < w.cost) { g.audio.play('ui_deny', { vol: 0.5, reverb: 0 }); return; } d.credits -= w.cost; d.weapons.push(w.id); g.save.save(); g.audio.play('levelup', { vol: 0.6, reverb: 0 }); this.refreshArmory(); }
   refreshSettings() {
-    const s = this.game.settings; $('setQuality').value = s.quality; $('setSens').value = s.sens; $('vSens').textContent = s.sens.toFixed(2) + 'x'; $('setFov').value = s.fov; $('vFov').textContent = s.fov + '°';
+    const s = this.game.settings; $('setDiff').value = this.game.save.data.difficulty; $('setQuality').value = s.quality; $('setSens').value = s.sens; $('vSens').textContent = s.sens.toFixed(2) + 'x'; $('setFov').value = s.fov; $('vFov').textContent = s.fov + '°';
     for (const [id, k, v] of [['setMaster', 'master', 'vMaster'], ['setSfx', 'sfx', 'vSfx'], ['setMusic', 'music', 'vMusic']]) { $(id).value = s[k]; $(v).textContent = Math.round(s[k] * 100) + '%'; }
     $('setInvert').checked = s.invertY; $('setDmg').checked = s.dmgNumbers; $('setFps').checked = s.showFps; $('btnReset').style.display = this.settingsFrom === 'menu' ? '' : 'none';
   }
@@ -289,7 +290,7 @@ export class UI {
       if (!e) { d.className = 'mm-slot empty'; nm.textContent = 'Searching…'; }
       else {
         const { r, i } = e; d.className = 'mm-slot ' + (r[3] ? 'b' : 'h') + (i === m.mySlot ? ' me' : '') + (m.mode.teams ? ' t' + r[2] : '');
-        nm.textContent = r[1]; tag.textContent = i === m.mySlot ? 'YOU' : r[3] ? 'AI' : tierOf(r[4]).label;
+        nm.textContent = r[1]; tag.textContent = i === m.mySlot ? 'YOU' : r[3] ? 'AI · ' + tierOf(r[4]).name : tierOf(r[4]).label;
       }
       d.append(nm, tag); box.appendChild(d);
     }
@@ -353,7 +354,7 @@ export class UI {
   }
   scoreHtml(mode, ro, me, H, title, sub) {
     const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-    const row = (r, i, rank) => `<div class="sb-row${i === me ? ' me' : ''}"><span>${rank}</span><span class="nm">${esc(r[1])}${r[3] ? '<span class="ai">AI</span>' : ''}</span><span>${r[5]}</span><span>${r[6]}</span><span>${mode.teams ? r[7] : (r[6] ? (r[5] / r[6]).toFixed(1) : r[5])}</span></div>`;
+    const row = (r, i, rank) => `<div class="sb-row${i === me ? ' me' : ''}"><span>${rank}</span><span class="nm">${esc(r[1])}${r[3] ? `<span class="ai">AI · ${tierOf(r[4]).name}</span>` : ''}</span><span>${r[5]}</span><span>${r[6]}</span><span>${mode.teams ? r[7] : (r[6] ? (r[5] / r[6]).toFixed(1) : r[5])}</span></div>`;
     const hd = `<div class="sb-row hd"><span>#</span><span>OPERATIVE</span><span>K</span><span>D</span><span>${mode.teams ? 'CAP' : 'K/D'}</span></div>`;
     const sorted = ro.map((r, i) => ({ r, i })).sort((a, b) => b.r[5] - a.r[5] || a.r[6] - b.r[6]);
     let body;

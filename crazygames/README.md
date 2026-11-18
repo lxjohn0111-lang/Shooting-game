@@ -4,8 +4,8 @@ Everything the CrazyGames developer portal asks for, ready to upload.
 
 | File | What it is | Where it goes in the portal |
 | --- | --- | --- |
-| `vanta-protocol-crazygames.zip` | The game build (HTML5): a single self-contained `index.html` at the root of the zip, 275 KB zipped | Game files / build upload |
-| `game/index.html` | The same file, unzipped (964 KB). It contains all the CSS and JavaScript, so it needs no other files | — |
+| `vanta-protocol-crazygames.zip` | The game build (HTML5): a single self-contained `index.html` at the root of the zip, 277 KB zipped | Game files / build upload |
+| `game/index.html` | The same file, unzipped (972 KB). It contains all the CSS and JavaScript, so it needs no other files | — |
 | `covers/cover-landscape-1920x1080.png` | Landscape cover, 16:9 | Covers → Landscape |
 | `covers/cover-portrait-800x1200.png` | Portrait cover, 2:3 | Covers → Portrait |
 | `covers/cover-square-800x800.png` | Square cover, 1:1 | Covers → Square |
@@ -46,6 +46,7 @@ campaign missions and stars, credits, XP, owned weapons, upgrades and augments, 
 | SDK v3 script | `<script src="https://sdk.crazygames.com/crazygames-sdk-v3.js">` in `index.html` |
 | `SDK.init()` | First thing on boot, before the save is read |
 | `game.loadingStart()` / `loadingStop()` | Around texture baking and the first level build |
+| Instant gameplay | After loading, the game drops straight into the first campaign mission (`gameplayStart` fires right away); the menus are one pause away |
 | `game.gameplayStart()` / `gameplayStop()` | Missions and matches start / pause, death, results, menus |
 | `game.happytime()` | Mission complete, boss destroyed, multiplayer win |
 | Midgame ads | Between missions and on retry |
@@ -97,6 +98,6 @@ Kestrel Station's security grid has gone rogue, and its machines answer to a sin
 
 ## Things to decide in the portal
 
-- **Mobile:** the game has touch controls and drops to its low graphics preset on phones, but it was built and tested for desktop first. Submit as desktop-only unless you have played it on a phone and are happy with it.
+- **Mobile:** touch controls, the low graphics preset on phones, and menus laid out to fit a phone screen without scrolling in landscape (portrait works for menus; during play the game pauses and asks to turn the phone sideways). Play it on a real phone before ticking mobile support.
 - **Orientation:** landscape.
 - **Multiplayer:** only once `MP_SERVER_URL` points at a running relay.

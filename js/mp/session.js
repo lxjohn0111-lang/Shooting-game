@@ -181,7 +181,8 @@ export class Match {
     }
     this.lastH = this.H;
   }
-  _makeBot(slot) { const b = new BotBrain(this, slot, botSkillFor(this.H.bm), Math.random()); this.bots.set(slot, b); return b; }
+  _makeBot(slot) { const r = this.H.ro[slot]; const b = new BotBrain(this, slot, botSkillFor(r ? r[4] : this.H.bm), Math.random()); this.bots.set(slot, b); return b; }
+  _botMmr() { return Math.max(0, Math.round(this.H.bm + (Math.random() - 0.5) * 120)); }
   _botName() { const used = new Set(this.H.ro.map((r) => r[1])); for (let i = 0; i < 20; i++) { const n = randomCallsign(); if (!used.has(n)) return n; } return 'Unit-' + ((Math.random() * 999) | 0); }
   _teamFor() { if (!this.mode.teams) return 0; const c = [0, 0]; for (const r of this.H.ro) c[r[2]]++; return c[0] <= c[1] ? 0 : 1; }
 
@@ -196,7 +197,7 @@ export class Match {
       for (let i = H.ro.length - 1; i >= 0; i--) {
         const r = H.ro[i]; if (r[3] || hs.has(r[0])) continue;
         if (H.ph === 'form') H.ro.splice(i, 1);
-        else { H.ro[i] = ['', this._botName(), r[2], 1, H.bm, 0, 0, 0]; if (H.ph !== 'end') this._makeBot(i); }
+        else { H.ro[i] = ['', this._botName(), r[2], 1, this._botMmr(), 0, 0, 0]; if (H.ph !== 'end') this._makeBot(i); }
       }
       // new humans
       for (const [peer, p] of hs) {
@@ -216,7 +217,7 @@ export class Match {
     if (H.ph === 'form') {
       H.t += dt;
       if (H.ro.filter((r) => !r[3]).length >= slots || H.t >= H.win) {
-        while (H.ro.length < slots) { const i = H.ro.length; H.ro.push(['', this._botName(), this._teamFor(), 1, H.bm, 0, 0, 0]); this._makeBot(i); }
+        while (H.ro.length < slots) { const i = H.ro.length; H.ro.push(['', this._botName(), this._teamFor(), 1, this._botMmr(), 0, 0, 0]); this._makeBot(i); }
         H.ph = 'start'; H.t = 5;
       }
     } else if (H.ph === 'start') { H.t -= dt; if (H.t <= 0) { H.ph = 'live'; H.t = 0; } }

@@ -30,9 +30,9 @@ export const PERKS = [
 export const perkCost = (p, lvl) => Math.round(p.base * (1 + lvl * 0.85));
 
 export const DIFFICULTY = {
-  recruit: { name: 'RECRUIT', hp: 0.75, dmg: 0.5, credits: 0.8, desc: 'Enemies are weaker.' },
-  veteran: { name: 'VETERAN', hp: 0.95, dmg: 0.82, credits: 1.0, desc: 'The intended experience.' },
-  elite: { name: 'ELITE', hp: 1.3, dmg: 1.35, credits: 1.4, desc: 'Lethal. +40% credits.' },
+  recruit: { name: 'RECRUIT', label: 'Easy', hp: 0.7, dmg: 0.42, credits: 0.8, desc: 'Enemies are weaker and hit softer.' },
+  veteran: { name: 'VETERAN', label: 'Normal', hp: 0.88, dmg: 0.66, credits: 1.0, desc: 'Balanced. Recommended.' },
+  elite: { name: 'ELITE', label: 'Hard', hp: 1.2, dmg: 1.15, credits: 1.4, desc: 'Tough enemies that hit hard. +40% credits.' },
 };
 
 export const ENEMIES = {
