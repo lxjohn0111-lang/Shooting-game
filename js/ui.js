@@ -258,27 +258,27 @@ export class UI {
     el.className = 'net ' + svc.status;
     if (svc.status === 'connecting') tx.textContent = 'CONNECTING TO THE LOBBY';
     else if (svc.status === 'online') { const n = svc.onlineCount(); tx.textContent = `ONLINE · ${n} ${n === 1 ? 'OPERATIVE' : 'OPERATIVES'} IN THE LOBBY`; }
-    else tx.textContent = 'OFFLINE · NO MULTIPLAYER SERVER · SEATS ARE FILLED WITH AI';
+    else tx.textContent = 'OFFLINE · NO MULTIPLAYER SERVER';
   }
   mmShow(svc) {
     this.show('mm'); const m = MP_MODES[svc.mode];
-    $('mmMode').textContent = 'RANKED · ' + m.name; $('mmTitle').textContent = 'SEARCHING'; $('mmTime').textContent = '0:00'; $('mmBar').style.width = '0%';
+    $('mmMode').textContent = 'RANKED · ' + m.name; $('mmTitle').textContent = 'SEARCHING'; $('mmTime').textContent = '0:00'; this._mmStart = performance.now(); $('mmBarWrap').classList.add('searching'); $('mmBar').style.width = '';
     $('mmSub').textContent = 'Connecting to the lobby'; $('mmMap').textContent = ''; $('mmSlots').innerHTML = ''; this._mmKey = '';
   }
   mmSearch(svc) {
     if (this.cur !== 'mm') return;
-    $('mmTitle').textContent = 'SEARCHING'; $('mmTime').textContent = fmtTime(svc.searchT);
-    $('mmSub').textContent = svc.status === 'online' ? 'Looking for an open match near your rating' : svc.status === 'connecting' ? 'Connecting to the lobby' : 'Offline · starting a match against AI';
+    $('mmTitle').textContent = 'SEARCHING'; $('mmTime').textContent = fmtTime((performance.now() - (this._mmStart || performance.now())) / 1000);
+    $('mmSub').textContent = svc.status === 'online' ? 'Looking for an open match near your rating' : svc.status === 'connecting' ? 'Connecting to the lobby' : 'Looking for an open match near your rating';
   }
   mmUpdate(m) {
     if (this.cur !== 'mm') return; const H = m.H;
     if (!H) { $('mmTitle').textContent = 'JOINING MATCH'; $('mmSub').textContent = 'Waiting for the host'; return; }
     const hum = H.ro.filter((r) => !r[3]).length;
     if (H.ph === 'form') {
-      const left = Math.max(0, H.win - H.t);
-      $('mmTitle').textContent = 'SEARCHING FOR OPERATIVES'; $('mmTime').textContent = fmtTime(left); $('mmBar').style.width = clamp(H.t / H.win * 100, 0, 100) + '%';
-      $('mmSub').textContent = m.svc.t.online ? `${hum} of ${m.mode.slots} operatives found · AI fills the empty seats when the timer runs out` : 'Offline · empty seats are filled with AI';
-    } else if (H.ph === 'start') { $('mmTitle').textContent = 'MATCH FOUND'; $('mmTime').textContent = String(Math.max(1, Math.ceil(H.t))); $('mmBar').style.width = '100%'; $('mmSub').textContent = 'Deploying'; }
+      $('mmTitle').textContent = 'SEARCHING FOR OPERATIVES'; $('mmTime').textContent = fmtTime((performance.now() - (this._mmStart || performance.now())) / 1000);
+      $('mmBarWrap').classList.add('searching'); $('mmBar').style.width = '';
+      $('mmSub').textContent = `${hum} of ${m.mode.slots} operatives found`;
+    } else if (H.ph === 'start') { $('mmTitle').textContent = 'MATCH FOUND'; $('mmTime').textContent = String(Math.max(1, Math.ceil(H.t))); $('mmBarWrap').classList.remove('searching'); $('mmBar').style.width = '100%'; $('mmSub').textContent = 'Deploying'; }
     else if (H.ph === 'live') { $('mmTitle').textContent = 'JOINING MATCH IN PROGRESS'; $('mmTime').textContent = fmtTime(H.dur - H.t); $('mmSub').textContent = 'Taking over an AI seat'; }
     $('mmMap').textContent = H.ph === 'form' ? '' : `${H.mn} · ${m.mode.name}`;
     const key = JSON.stringify(H.ro.map((r) => [r[0], r[1], r[2], r[3]])) + m.mySlot + H.ph;

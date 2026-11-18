@@ -504,3 +504,9 @@ body.touch .keys-touch{display:flex;flex-direction:column;gap:.45em}
 }
 /* touch buttons that only make sense in one mode */
 #hud:not(.mp) ~ #touch .t-score, #hud.mp ~ #touch .t-focus{display:none}
+
+/* matchmaking: an open-ended sweep while searching (no countdown) */
+.mm-bar{position:relative;overflow:hidden}
+.mm-bar.searching i{position:absolute;left:0;top:0;width:35%;animation:mmsweep 1.6s ease-in-out infinite}
+@keyframes mmsweep{0%{transform:translateX(-100%)}100%{transform:translateX(290%)}}
+@media (prefers-reduced-motion:reduce){.mm-bar.searching i{animation:none;width:100%;opacity:.5}}

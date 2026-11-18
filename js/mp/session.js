@@ -8,7 +8,7 @@
 //   - if the host leaves or its tab is hidden, the remaining player with the lowest id takes over from the last state.
 import * as THREE from '../lib/three.min.js';
 import { connectTransport } from '../net/transport.js';
-import { MP_MODES, MP_SERVER_URL, MP_SEARCH_SECONDS, MP_LOADOUT, TEAMS, MP_THEMES, MP_SKIES, MP_MAP_NAMES, WEAPONS } from '../config.js';
+import { MP_MODES, MP_SERVER_URL, MP_SEARCH_MIN, MP_SEARCH_MAX, MP_LOADOUT, TEAMS, MP_THEMES, MP_SKIES, MP_MAP_NAMES, WEAPONS } from '../config.js';
 import { mpDefaults, rateMatch, botSkillFor, randomCallsign, cleanName, tierOf } from './ranked.js';
 import { BotBrain } from './bots.js';
 import { Avatar } from './avatar.js';
@@ -171,7 +171,8 @@ export class Match {
     this.isHost = true; this.hostPeer = this.myPeer;
     if (!from) {
       const r = new RNG((Math.random() * 1e9) | 0), th = r.pick(MP_THEMES);
-      const wait = +q.get('mpwait') || (this.svc.t.online ? MP_SEARCH_SECONDS : 4);
+      // 10–17 s counted from when the player pressed FIND MATCH (time already spent scanning the lobby included)
+      const wait = +q.get('mpwait') || Math.max(3, Math.round((MP_SEARCH_MIN + Math.random() * (MP_SEARCH_MAX - MP_SEARCH_MIN) - this.svc.searchT) * 10) / 10);
       this.H = { v: 1, id: this.id, md: this.mode.id, sd: r.i(1, 99999), th, sk: r.pick(MP_SKIES), mn: r.pick(MP_MAP_NAMES[th]), ph: 'form', t: 0, win: wait, ro: [], ts: [0, 0], pt: [[-1, 0], [-1, 0], [-1, 0]], bs: [], w: -1, bm: Math.round(this.svc.data.mmr), lim: +q.get('mplimit') || this.mode.scoreLimit, dur: +q.get('mptime') || this.mode.time };
     } else {
       this.H = JSON.parse(JSON.stringify(from)); this.H.v = from.v + 1;

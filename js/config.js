@@ -97,9 +97,10 @@ export const MISSIONS = [
 
 // ---------------------------------------------------------------- multiplayer
 // WebSocket relay used outside claude.ai (e.g. on CrazyGames). Deploy server/relay.js and put its wss:// URL here.
-// Leave empty to run multiplayer offline (every seat is filled with AI after the search window).
+// Leave empty to run multiplayer offline (every open seat is filled with AI after the search window).
 export const MP_SERVER_URL = '';
-export const MP_SEARCH_SECONDS = 30;
+// a new match waits a random 10–17 s for players, then starts with AI in the open seats
+export const MP_SEARCH_MIN = 10, MP_SEARCH_MAX = 17;
 export const MP_LOADOUT = ['pistol', 'rifle', 'smg', 'shotgun', 'marksman'];
 export const MP_MODES = {
   dm: { id: 'dm', name: 'DEATHMATCH', short: 'DM', slots: 8, teams: 0, scoreLimit: 25, time: 480, respawn: 3.5, desc: 'Free-for-all. Every operative for themselves. First to 25 eliminations.' },

@@ -13,7 +13,7 @@ Everything is generated at runtime: textures, models, sound effects and music. T
 - **Ranked multiplayer** — real-time online matches on a random map every time
   - **Deathmatch**: 8-player free-for-all, first to 25 eliminations
   - **Domination**: 5 v 5, capture and hold points A, B and C, first to 250
-  - matchmaking searches for up to 30 seconds, then fills every empty seat with AI operatives; players can also drop into a running match and take over an AI seat
+  - matchmaking searches for a random 10–17 seconds, then fills every empty seat with AI operatives (the search screen does not announce it); players can also drop into a running match and take over an AI seat
   - AI operatives carry a rating near the lobby's and play to it: clumsy in Iron to Silver, sharp only from Platinum up
   - rating (MMR) with 7 tiers and 3 divisions each, placement matches, match history
 - **7 weapons** — pistol, assault rifle, SMG, shotgun, scoped marksman rifle, grenade launcher, charge railgun; each with upgrades
