@@ -46,7 +46,7 @@ campaign missions and stars, credits, XP, owned weapons, upgrades and augments, 
 | SDK v3 script | `<script src="https://sdk.crazygames.com/crazygames-sdk-v3.js">` in `index.html` |
 | `SDK.init()` | First thing on boot, before the save is read |
 | `game.loadingStart()` / `loadingStop()` | Around texture baking and the first level build |
-| Instant gameplay | After loading, the game drops straight into the first campaign mission (`gameplayStart` fires right away); the menus are one pause away |
+| Instant gameplay | After loading, the game drops straight into a Domination quick match (`gameplayStart` fires right away, no matchmaking screen); it is unranked and the menus are one pause away |
 | `game.gameplayStart()` / `gameplayStop()` | Missions and matches start / pause, death, results, menus |
 | `game.happytime()` | Mission complete, boss destroyed, multiplayer win |
 | Midgame ads | Between missions and on retry |

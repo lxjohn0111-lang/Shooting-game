@@ -228,7 +228,8 @@ export class Game {
   mpBegin(match) {
     this.audio.init(); this.audio.resume(); this.timeScale = 1; this.slowT = 0; this.fadeIn = 1; this.gfx.fx.uFade.value = 1;
     this.state = 'playing'; this.ui.show('hud'); this.ui.mpHud(true, match); this.ui.hudAll(this.player); this.ui.bossBar(false);
-    this.ui.banner(match.mode.name, (this.level.def.name || '') + ' · RANKED');
+    this.ui.banner(match.mode.name, (this.level.def.name || '') + (match.intro ? ' · QUICK MATCH' : ' · RANKED'));
+    if (match.intro && !this.save.data.seenIntro && !this.input.touch) { setTimeout(() => this.ui.hint('<kbd>WASD</kbd> move · <kbd>SHIFT</kbd> sprint · <kbd>C</kbd> crouch / slide · <kbd>RMB</kbd> aim · <kbd>R</kbd> reload · <kbd>G</kbd> frag · <kbd>F</kbd> melee · <kbd>TAB</kbd> score', 12), 1500); this.save.data.seenIntro = true; this.save.save(); }
     this.audio.setMusic('combat'); this.audio.intensity = 0.4;
     this.input.enabled = true; this.input.lock(); this.sdk.gameplayStart();
     this.gfx.renderer.compile(this.gfx.scene, this.gfx.camera);
@@ -247,7 +248,7 @@ export class Game {
   mpExit(again) {
     const m = this.mp; this.mp = null; if (m) { m.forfeit(); m.leave(); } this.net.matchClosed();
     this.toMenu();
-    if (again) this.net.find(again); else this.ui.show('mp');
+    if (again) this.net.find(again); else this.ui.show(m && m.intro ? 'menu' : 'mp');
   }
 
   showAd(type) { return this.sdk.ad(type, { onStart: () => { this.audio.adMuted = true; this.audio.applyVol(); }, onEnd: () => { this.audio.adMuted = false; this.audio.applyVol(); this.last = performance.now(); } }); }

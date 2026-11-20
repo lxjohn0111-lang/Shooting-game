@@ -7,7 +7,7 @@
 //     applies them and reports its own death ('d'). The host simulates bots, captures and scores.
 //   - if the host leaves or its tab is hidden, the remaining player with the lowest id takes over from the last state.
 import * as THREE from '../lib/three.min.js';
-import { connectTransport } from '../net/transport.js';
+import { connectTransport, LocalTransport } from '../net/transport.js';
 import { MP_MODES, MP_SERVER_URL, MP_SEARCH_MIN, MP_SEARCH_MAX, MP_LOADOUT, TEAMS, MP_THEMES, MP_SKIES, MP_MAP_NAMES, WEAPONS } from '../config.js';
 import { mpDefaults, rateMatch, botSkillFor, randomCallsign, cleanName, tierOf } from './ranked.js';
 import { BotBrain } from './bots.js';
@@ -85,7 +85,7 @@ export class MPService {
   }
   // two players who searched at the same moment each open a match: the newer, still-empty one folds into the older one
   _mergeTick(dt) {
-    const m = this.match; if (!m || !m.isHost || !m.H || m.H.ph !== 'form' || this._opening) return;
+    const m = this.match; if (!m || m.intro || !m.isHost || !m.H || m.H.ph !== 'form' || this._opening || !this.t) return;
     this.mergeT = (this.mergeT || 0) - dt; if (this.mergeT > 0) return; this.mergeT = 0.5;
     if (m.H.ro.filter((r) => !r[3]).length > 1) return;
     const me = this.t.me(), age = m.H.t;
@@ -117,12 +117,19 @@ export class MPService {
   }
   // a match we tried turned out to be full / gone: keep searching
   matchFailed(id) { this.rejected.add(id); this.match = null; this.state = 'search'; this.scanT = 0.2; this.setLobby({ st: 'search', id: null, ph: null, o: null }); this.game.ui.mmShow(this); }
+  // the match the game opens with: Domination, straight into play, no lobby
+  async startIntro() {
+    this.mode = 'dom'; this.state = 'match'; this.game.ui.mpMode = 'dom';
+    const m = new Match(this, 'dom', 'q' + randId(), true, { intro: true, transport: new LocalTransport() });
+    this.match = m; await m.open();
+  }
   matchClosed() { this.match = null; this.state = 'idle'; this.setLobby({ st: 'idle', id: null, ph: null, o: null, md: null }); }
 }
 
 // ======================================================================================= match
 export class Match {
-  constructor(svc, mode, id, asHost) {
+  constructor(svc, mode, id, asHost, opts = {}) {
+    this.intro = !!opts.intro; this.tp = opts.transport || null;
     this.svc = svc; this.game = svc.game; this.mode = MP_MODES[mode]; this.id = id; this.asHost = asHost;
     this.loadout = MP_LOADOUT; this.isHost = false; this.H = null; this.lastH = null; this.hostPeer = null;
     this.peers = []; this.pinfo = new Map(); this.lastSeq = new Map(); this.ring = []; this.seq = 0;
@@ -132,7 +139,8 @@ export class Match {
     this.notInRosterT = 0; this.noHostT = 0; this.scoreT = 0; this.rosterT = 0; this.lobbyT = 0; this.killStreak = 0; this.multiT = 0; this.multiN = 0;
     this.stats = { kills: 0, deaths: 0, caps: 0 };
   }
-  get myPeer() { return this.svc.t.me(); }
+  get t() { return this.tp || this.svc.t; }
+  get myPeer() { return this.t.me(); }
   get level() { return this.game.level; }
   teamOf(slot) { const r = this.H && this.H.ro[slot]; return r ? r[2] : -1; }
   get myTeam() { return this.teamOf(this.mySlot); }
@@ -140,11 +148,11 @@ export class Match {
   nameOf(slot) { const r = this.H && this.H.ro[slot]; return r ? r[1] : '—'; }
 
   async open() {
-    this.chan = await this.svc.t.join('vp-' + this.id);
+    this.chan = await this.t.join('vp-' + this.id);
     this.chan.onPeers((ch) => this._onPeers(ch.peers));
     this.openedAt = this.time;
     if (this.asHost) this._becomeHost(null);
-    this.svc.setLobby(this.asHost ? this._lobbyInfo() : { st: 'in', id: this.id, md: this.mode.id, ph: null, o: null });
+    if (!this.intro) this.svc.setLobby(this.asHost ? this._lobbyInfo() : { st: 'in', id: this.id, md: this.mode.id, ph: null, o: null });
     this.sendNow();
   }
   _onPeers(peers) {
@@ -173,6 +181,7 @@ export class Match {
       const r = new RNG((Math.random() * 1e9) | 0), th = r.pick(MP_THEMES);
       // 10–17 s counted from when the player pressed FIND MATCH (time already spent scanning the lobby included)
       const wait = +q.get('mpwait') || Math.max(3, Math.round((MP_SEARCH_MIN + Math.random() * (MP_SEARCH_MAX - MP_SEARCH_MIN) - this.svc.searchT) * 10) / 10);
+      if (this.intro) { this.H = { v: 1, id: this.id, md: 'dom', sd: r.i(1, 99999), th, sk: r.pick(['golden', 'dusk', 'dawn', 'ember']), mn: r.pick(MP_MAP_NAMES[th]), ph: 'form', t: 0, win: 0, ro: [], ts: [0, 0], pt: [[-1, 0], [-1, 0], [-1, 0]], bs: [], w: -1, bm: Math.round(this.svc.data.mmr), lim: 150, dur: 600, intro: 1 }; this.lastH = this.H; return; }
       this.H = { v: 1, id: this.id, md: this.mode.id, sd: r.i(1, 99999), th, sk: r.pick(MP_SKIES), mn: r.pick(MP_MAP_NAMES[th]), ph: 'form', t: 0, win: wait, ro: [], ts: [0, 0], pt: [[-1, 0], [-1, 0], [-1, 0]], bs: [], w: -1, bm: Math.round(this.svc.data.mmr), lim: +q.get('mplimit') || this.mode.scoreLimit, dur: +q.get('mptime') || this.mode.time };
     } else {
       this.H = JSON.parse(JSON.stringify(from)); this.H.v = from.v + 1;
@@ -219,7 +228,7 @@ export class Match {
       H.t += dt;
       if (H.ro.filter((r) => !r[3]).length >= slots || H.t >= H.win) {
         while (H.ro.length < slots) { const i = H.ro.length; H.ro.push(['', this._botName(), this._teamFor(), 1, this._botMmr(), 0, 0, 0]); this._makeBot(i); }
-        H.ph = 'start'; H.t = 5;
+        H.ph = 'start'; H.t = H.intro ? 0.2 : 5;
       }
     } else if (H.ph === 'start') { H.t -= dt; if (H.t <= 0) { H.ph = 'live'; H.t = 0; } }
     else if (H.ph === 'live') {
@@ -228,16 +237,18 @@ export class Match {
         const ents = this.ents();
         for (const b of this.bots.values()) b.update(dt, ents);
         if (this.mode.id === 'dom') this._domTick(dt, ents);
+        if (H.intro) this._introTick(dt);
       }
       // end of match
       let over = H.t >= H.dur, w = -1;
-      if (this.mode.teams) { if (H.ts[0] >= H.lim || H.ts[1] >= H.lim) over = true; w = H.ts[0] > H.ts[1] ? 0 : H.ts[1] > H.ts[0] ? 1 : -1; }
+      if (H.intro) { const mt = this.myTeam < 0 ? 0 : this.myTeam; over = H.ts[mt] >= H.lim || over; if (over && H.ts[mt] <= H.ts[1 - mt]) H.ts[mt] = H.ts[1 - mt] + 1; w = mt; }
+      else if (this.mode.teams) { if (H.ts[0] >= H.lim || H.ts[1] >= H.lim) over = true; w = H.ts[0] > H.ts[1] ? 0 : H.ts[1] > H.ts[0] ? 1 : -1; }
       else { let best = -1; for (let i = 0; i < H.ro.length; i++) if (best < 0 || H.ro[i][5] > H.ro[best][5]) best = i; if (best >= 0 && H.ro[best][5] >= H.lim) over = true; w = best; }
       if (over) { H.ph = 'end'; H.t = 0; H.w = w; }
     } else if (H.ph === 'end') H.t += dt;
     H.bs = [...this.bots.values()].map((b) => b.encode());
     // keep the lobby informed so searchers can find us
-    this.lobbyT -= dt; if (this.lobbyT <= 0) { this.lobbyT = H.ph === 'form' ? 0.5 : 1.5; this.svc.setLobby(this._lobbyInfo()); }
+    this.lobbyT -= dt; if (!this.intro && this.lobbyT <= 0) { this.lobbyT = H.ph === 'form' ? 0.5 : 1.5; this.svc.setLobby(this._lobbyInfo()); }
   }
   _lobbyInfo() {
     const H = this.H, hc = H.ro.filter((r) => !r[3]).length, bc = H.ro.length - hc;
@@ -246,12 +257,14 @@ export class Match {
   }
   _domTick(dt, ents) {
     const H = this.H, pts = this.level.points;
+    const mt = this.myTeam < 0 ? 0 : this.myTeam, lead = H.intro ? H.ts[mt] - H.ts[1 - mt] : 0;
     for (let k = 0; k < 3; k++) {
       const p = pts[k], c = [0, 0], who = [[], []];
       for (const e of ents) if (e.alive && Math.hypot(e.x - p.x, e.z - p.z) < 5.5 && e.y < 3) { c[e.team]++; who[e.team].push(e.slot); }
       const pt = H.pt[k]; let [own, prog] = pt;
       const dir = c[0] && !c[1] ? 1 : c[1] && !c[0] ? -1 : 0, n = Math.max(c[0], c[1]);
-      const rate = 100 / 5 * (1 + 0.3 * (Math.min(n, 3) - 1));
+      let rate = 100 / 5 * (1 + 0.3 * (Math.min(n, 3) - 1));
+      if (H.intro && lead >= 12 && dir === (mt === 0 ? -1 : 1)) rate *= lead >= 20 ? 2.6 : 1.7;
       if (dir) {
         prog = clamp(prog + dir * rate * dt, -100, 100);
         if (own === 0 && prog < 0) own = -1; if (own === 1 && prog > 0) own = -1;
@@ -260,7 +273,29 @@ export class Match {
       } else if (!c[0] && !c[1]) { const goal = own === 0 ? 100 : own === 1 ? -100 : 0; prog += clamp(goal - prog, -rate * 0.5 * dt, rate * 0.5 * dt); }
       pt[0] = own; pt[1] = Math.round(prog * 10) / 10;
     }
-    this.scoreT += dt; if (this.scoreT >= 2) { this.scoreT -= 2; for (const pt of H.pt) if (pt[0] >= 0) H.ts[pt[0]]++; }
+    this.scoreT += dt;
+    if (this.scoreT >= 2) {
+      this.scoreT -= 2;
+      const held = [0, 0];
+      for (const pt of H.pt) {
+        if (pt[0] < 0) continue;
+        if (H.intro && pt[0] !== mt) {
+          const behind = H.ts[pt[0]] - H.ts[mt];
+          if (H.ts[pt[0]] >= H.lim - 14 || behind >= 14 || (H.t > H.dur - 90 && behind >= 0)) continue;
+        } else if (H.intro && lead >= 14 && Math.random() > (lead >= 24 ? 0.2 : lead >= 18 ? 0.4 : 0.65)) continue;
+        held[pt[0]]++; H.ts[pt[0]]++;
+      }
+      // a squad that has been pushed off every point still trickles in, so the score never runs away
+      if (H.intro && lead >= 20 && !held[1 - mt] && H.ts[1 - mt] < H.lim - 14 && Math.random() < 0.6) H.ts[1 - mt]++;
+    }
+  }
+  // opening match: keep it close by tuning both squads' AI from the score
+  _introTick(dt) {
+    this.introT = (this.introT || 0) - dt; if (this.introT > 0) return; this.introT = 1.5;
+    const H = this.H, mt = this.myTeam < 0 ? 0 : this.myTeam, lead = H.ts[mt] - H.ts[1 - mt];
+    let ally = 0.24, foe = 0.13;
+    if (lead > 20) { ally = 0.1; foe = 0.4; } else if (lead > 12) { ally = 0.15; foe = 0.28; } else if (lead < -6) { ally = 0.42; foe = 0.05; } else if (lead < 2) { ally = 0.32; foe = 0.09; }
+    for (const [slot, b] of this.bots) b.skill = this.teamOf(slot) === mt ? ally : foe;
   }
   // positions of everyone, for AI and capture zones
   ents() {
@@ -457,6 +492,11 @@ export class Match {
       place = order.indexOf(me) + 1; score = ro.length > 1 ? 1 - (place - 1) / (ro.length - 1) : 1; win = place === 1;
       const opp = ro.filter((r, i) => i !== me); oppAvg = opp.length ? opp.reduce((a, r) => a + r[4], 0) / opp.length : mp.mmr;
     }
+    if (this.intro) {
+      const credits = K * 20 + caps * 12 + (win ? 150 : 60), xp = K * 40 + caps * 30 + (win ? 300 : 120);
+      const sd = this.game.save.data; sd.credits += credits; sd.xp += xp; this.game.save.save();
+      return { mode: this.mode, intro: true, win, draw: false, place, total: ro.length, K, D, caps, before: mp.mmr, after: mp.mmr, delta: 0, credits, xp, ro: ro.map((r) => r.slice()), me, myTeam: mine[2], ts: H.ts.slice(), mapName: H.mn };
+    }
     const before = mp.mmr, delta = rateMatch(mp, oppAvg, score, (K - D) * 0.35 + caps * 0.8);
     mp.mmr = Math.max(0, before + delta); mp.best = Math.max(mp.best || 0, mp.mmr); mp.matches++; if (win) mp.wins++; mp.kills += K; mp.deaths += D;
     mp.history = [{ md: this.mode.id, d: delta, w: win ? 1 : 0, k: K, de: D, t: Date.now() }, ...(mp.history || [])].slice(0, 20);
@@ -467,6 +507,7 @@ export class Match {
   // leaving a live match counts as a loss
   forfeit() {
     if (!this.began || this.ended || !this.H) return;
+    if (this.intro) { this.ended = true; return; }
     const mp = this.svc.data, ro = this.H.ro; const avg = ro.length ? ro.reduce((a, r) => a + r[4], 0) / ro.length : mp.mmr;
     const d = rateMatch(mp, avg, 0, 0); mp.mmr = Math.max(0, mp.mmr + d); mp.matches++; mp.history = [{ md: this.mode.id, d, w: 0, k: this.stats.kills, de: this.stats.deaths, t: Date.now(), left: 1 }, ...(mp.history || [])].slice(0, 20);
     this.game.save.save(); this.ended = true;

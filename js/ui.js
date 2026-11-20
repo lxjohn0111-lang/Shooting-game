@@ -354,7 +354,7 @@ export class UI {
   }
   scoreHtml(mode, ro, me, H, title, sub) {
     const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-    const row = (r, i, rank) => `<div class="sb-row${i === me ? ' me' : ''}"><span>${rank}</span><span class="nm">${esc(r[1])}${r[3] ? `<span class="ai">AI · ${tierOf(r[4]).name}</span>` : ''}</span><span>${r[5]}</span><span>${r[6]}</span><span>${mode.teams ? r[7] : (r[6] ? (r[5] / r[6]).toFixed(1) : r[5])}</span></div>`;
+    const row = (r, i, rank) => `<div class="sb-row${i === me ? ' me' : ''}"><span>${rank}</span><span class="nm">${esc(r[1])}${r[3] && !H.intro ? `<span class="ai">AI · ${tierOf(r[4]).name}</span>` : ''}</span><span>${r[5]}</span><span>${r[6]}</span><span>${mode.teams ? r[7] : (r[6] ? (r[5] / r[6]).toFixed(1) : r[5])}</span></div>`;
     const hd = `<div class="sb-row hd"><span>#</span><span>OPERATIVE</span><span>K</span><span>D</span><span>${mode.teams ? 'CAP' : 'K/D'}</span></div>`;
     const sorted = ro.map((r, i) => ({ r, i })).sort((a, b) => b.r[5] - a.r[5] || a.r[6] - b.r[6]);
     let body;
@@ -378,7 +378,8 @@ export class UI {
   mpRespawnTimer(m, t) { this.set('rsT', 'text', `REDEPLOYING IN ${Math.ceil(t)}`); }
   pauseMode(mp) {
     $('btnRestart').style.display = mp ? 'none' : ''; $('btnQuit').querySelector('b').textContent = mp ? 'LEAVE MATCH' : 'ABORT TO MENU';
-    $('quitSub').textContent = mp ? 'Leaving a ranked match counts as a loss' : ''; $('quitSub').style.display = mp ? '' : 'none';
+    const ranked = mp && !(this.game.mp && this.game.mp.intro);
+    $('quitSub').textContent = ranked ? 'Leaving a ranked match counts as a loss' : ''; $('quitSub').style.display = ranked ? '' : 'none';
   }
   mpEndBanner(m) {
     const H = m.H; let t, s;
@@ -388,7 +389,9 @@ export class UI {
   }
   mpResults(g, r) {
     this.show('mpres'); const el = $('mpres'); el.classList.toggle('win', r.win); el.classList.toggle('loss', !r.win && !r.draw);
-    $('mrSub').textContent = `RANKED · ${r.mode.name} · ${r.mapName}`;
+    $('mrSub').textContent = `${r.intro ? 'QUICK MATCH' : 'RANKED'} · ${r.mode.name} · ${r.mapName}`;
+    document.querySelector('.mr-rank').style.display = r.intro ? 'none' : '';
+    $('btnMrAgain').querySelector('b').textContent = r.intro ? 'PLAY RANKED' : 'PLAY AGAIN';
     $('mrTitle').textContent = r.mode.teams ? (r.draw ? 'DRAW' : r.win ? 'VICTORY' : 'DEFEAT') : r.place === 1 ? 'VICTORY' : `#${r.place} OF ${r.total}`;
     const t = tierOf(r.after), tb = tierOf(r.before);
     $('mrEmblem').style.setProperty('--tc', t.color); $('mrEmblemDiv').textContent = t.div || 'E';
@@ -396,7 +399,7 @@ export class UI {
     $('mrBefore').textContent = Math.round(r.before); $('mrAfter').textContent = Math.round(r.after);
     const de = $('mrDelta'); de.textContent = (r.delta >= 0 ? '+' : '') + r.delta; de.className = r.delta >= 0 ? 'up' : 'down';
     const bar = $('mrProg'); bar.style.background = t.color; bar.style.transition = 'none'; bar.style.width = (tb.progress * 100) + '%'; requestAnimationFrame(() => requestAnimationFrame(() => { bar.style.transition = 'width 1.2s ease-out'; bar.style.width = (t.progress * 100) + '%'; }));
-    $('mrTable').innerHTML = this.scoreHtml(r.mode, r.ro, r.me, { ts: r.ts }, 'FINAL STANDINGS', r.mode.teams ? `${TEAMS[0].name} ${r.ts[0]} — ${r.ts[1]} ${TEAMS[1].name}` : `${r.K} ELIMINATIONS`);
+    $('mrTable').innerHTML = this.scoreHtml(r.mode, r.ro, r.me, { ts: r.ts, intro: r.intro }, 'FINAL STANDINGS', r.mode.teams ? `${TEAMS[0].name} ${r.ts[0]} — ${r.ts[1]} ${TEAMS[1].name}` : `${r.K} ELIMINATIONS`);
     $('mrK').textContent = r.K; $('mrCr').textContent = '+' + fmtNum(r.credits); $('mrXp').textContent = '+' + fmtNum(r.xp);
     this.mpMode = r.mode.id;
   }

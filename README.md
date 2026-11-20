@@ -8,7 +8,8 @@ Everything is generated at runtime: textures, models, sound effects and music. T
 
 ## Features
 
-- **Campaign** — 6 missions with varied objectives (eliminate, hold-the-zone uplinks, destroy cores, survive-and-extract, boss), 3-star ratings; the game opens straight into the first mission
+- **Campaign** — 6 missions with varied objectives (eliminate, hold-the-zone uplinks, destroy cores, survive-and-extract, boss), 3-star ratings
+- **Opening match** — the game launches straight into an unranked Domination quick match (no lobby, no matchmaking screen). It runs locally against AI and keeps the score close while steering it to a win for the player's team (AI strength and point ticks follow the score); rating is untouched, credits and XP are awarded
 - **Difficulty** — Easy, Normal or Hard, switchable any time in Settings (also on the mission screen)
 - **Ranked multiplayer** — real-time online matches on a random map every time
   - **Deathmatch**: 8-player free-for-all, first to 25 eliminations
@@ -149,7 +150,7 @@ js/lib/           three.js r187 (MIT), bundled into one file
 
 ### QA URL parameters
 
-`?menu=1` opens the main menu instead of the first mission, `?m=1`…`6` starts a mission directly, `?mp=dm|dom` starts a multiplayer search (`&mpserver=ws://…` relay, `&mpwait=N` search seconds, `&mptime=N` match length, `&mplimit=N` score limit, `&mpname=` callsign), `?god=1` disables damage, `?q=low|medium|high|ultra` forces a quality preset, `?credits=N` sets credits.
+`?menu=1` opens the main menu instead of the opening match, `?m=1`…`6` starts a mission directly, `?mp=dm|dom` starts a multiplayer search (`&mpserver=ws://…` relay, `&mpwait=N` search seconds, `&mptime=N` match length, `&mplimit=N` score limit, `&mpname=` callsign), `?god=1` disables damage, `?q=low|medium|high|ultra` forces a quality preset, `?credits=N` sets credits.
 
 ## Credits
 

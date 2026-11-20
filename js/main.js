@@ -33,7 +33,8 @@ import { MISSIONS } from './config.js';
     try { portrait.addEventListener('change', checkPortrait); } catch (e) { }
     setInterval(checkPortrait, 1000);
     sdk.loadingStop();
-    ui.show('menu');
+    const opening = !q.get('menu') && !q.get('m') && !q.get('mp');
+    if (!opening) ui.show('menu');
     // first-mission control hint
     const origStart = game.startMission.bind(game);
     game.startMission = (i, o) => { origStart(i, o); if (!save.data.seenIntro && !game.input.touch) { setTimeout(() => ui.hint('<kbd>WASD</kbd> move · <kbd>SHIFT</kbd> sprint · <kbd>C</kbd> crouch / slide · <kbd>RMB</kbd> aim · <kbd>R</kbd> reload · <kbd>G</kbd> frag · <kbd>F</kbd> melee · <kbd>Q</kbd> focus', 12), 1500); save.data.seenIntro = true; save.save(); } };
@@ -53,7 +54,7 @@ import { MISSIONS } from './config.js';
     if (q.get('credits')) { save.data.credits = +q.get('credits'); }
     if (q.get('m')) { save.data.unlocked = MISSIONS.length; game.startMission(Math.max(0, Math.min(MISSIONS.length - 1, +q.get('m') - 1))); }
     else if (q.get('mp')) { if (q.get('mpname')) game.net.setName(q.get('mpname')); ui.mpMode = q.get('mp') === 'dom' ? 'dom' : 'dm'; game.net.find(ui.mpMode); }
-    else if (!q.get('menu')) game.startMission(0);   // the game opens straight into the first campaign mission
+    else if (opening) game.net.startIntro();   // the game opens straight into a Domination match
     window.READY = true;
   } catch (e) {
     console.error(e); fail('FAILED TO START: ' + (e && e.message ? e.message : e)); window.READY = true;
